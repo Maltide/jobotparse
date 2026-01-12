@@ -30,6 +30,13 @@ func GetServer(log *zap.SugaredLogger) error {
 		}
 	})
 
+	router.HandleFunc("/vacancies", func(w http.ResponseWriter, r *http.Request) {
+		err := handlers.GetVacancies(w, r, log)
+		if err != nil {
+			log.Errorf("from server.go: error in get vacancies handler: %v", err)
+		}
+	})
+
 	err := http.ListenAndServe(":8080", router)
 	if err != nil {
 		log.Errorf("fail to create server: %v", err)

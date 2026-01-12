@@ -14,7 +14,7 @@ type Config struct {
 }
 
 func GetConfig() (Config, error) {
-	err := godotenv.Load("pkg/.env")
+	err := godotenv.Load(".env")
 	if err != nil {
 		fmt.Printf("config: error loading env: %v", err)
 		return Config{}, fmt.Errorf("config: error loading .env file: %v", err)

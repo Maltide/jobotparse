@@ -1,8 +1,12 @@
 package helpers
 
 import (
+	"bufio"
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Maltide/JoBot/pkg/config"
@@ -31,7 +35,7 @@ func IsValidToken(tokens *types.Client, log *zap.SugaredLogger) (bool, error) {
 
 	err = json.Unmarshal(body, tokens)
 	if err != nil {
-		log.Errorf("helpers: error unmarshalling tokens: %v", err)
+		log.Errorf("helpers: IsValidToken: error unmarshalling tokens: %v", err)
 		return false, err
 	}
 
@@ -44,4 +48,60 @@ func IsValidToken(tokens *types.Client, log *zap.SugaredLogger) (bool, error) {
 	}
 
 	return true, nil // токен валиден
+}
+
+func VacancyFilters(log *zap.SugaredLogger) (types.Filters, error) {
+	var filters types.Filters
+	fields := []struct {
+		object string
+		input  *string
+	}{
+		{"profession:", &filters.Profession},
+		{"town:", &filters.Town},
+		{"salary from:", &filters.SalaryFrom},
+		{"salary to:", &filters.SalaryTo},
+		{"skills:", &filters.Skills},
+	}
+
+	r := bufio.NewReader(os.Stdin)
+
+	for _, f := range fields {
+		fmt.Println(f.object)
+		text, err := r.ReadString('\n')
+		if err != nil {
+			log.Errorf("helpers: VacancyFilters: error reading vacancy filters: %v", err)
+			return types.Filters{}, err
+		}
+		*f.input = strings.TrimSpace(text)
+	}
+	return filters, nil
+}
+
+func RequestString(filters types.Filters, log *zap.SugaredLogger) (string, error) {
+	base := "https://api.superjob.ru/2.0/vacancies/?"
+
+	u, err := url.Parse(base)
+	if err != nil {
+		log.Errorf("helpers: RequestString: error parsing base URL: %v", err)
+		return "", err
+	}
+
+	q := u.Query()
+
+	for _, f := range []struct {
+		key   string
+		value string
+	}{
+		{"keyword", filters.Profession},
+		{"town", filters.Town},
+		{"payment_from", filters.SalaryFrom},
+		{"payment_to", filters.SalaryTo},
+		{"skills", filters.Skills},
+	} {
+		if f.value != "" {
+			q.Set(f.key, f.value)
+		}
+	}
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }

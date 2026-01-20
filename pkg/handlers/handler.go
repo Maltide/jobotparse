@@ -1,14 +1,11 @@
 package handlers
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 
-	"github.com/Maltide/JoBot/pkg/config"
-	"github.com/Maltide/JoBot/pkg/helpers"
-	"github.com/Maltide/JoBot/pkg/types"
+	"github.com/Maltide/jobotparse/pkg/helpers"
+	"github.com/Maltide/jobotparse/pkg/interfaces"
+	"github.com/Maltide/jobotparse/pkg/types"
 	"go.uber.org/zap"
 )
 
@@ -19,7 +16,7 @@ func Authorize(w http.ResponseWriter, r *http.Request, log *zap.SugaredLogger) e
 	if err != nil {
 		return err
 	}
-	if !ok {
+	if ok {
 		log.Infof("handlers: tokens are present, no need to authorize")
 		return nil
 	}
@@ -35,66 +32,19 @@ func Authorize(w http.ResponseWriter, r *http.Request, log *zap.SugaredLogger) e
 	return nil
 }
 
-func GetVacancies(w http.ResponseWriter, r *http.Request, log *zap.SugaredLogger) error {
-	log.Infof("handlers: vacancies endpoint hit")
+func AllVacancies(apis []interfaces.VacanciesProvider, filters types.Filters, log *zap.SugaredLogger) (types.VacanciesResponse, error) {
+	var allVacs types.VacanciesResponse
 
-	cfg, err := config.GetConfig()
-	if err != nil {
-		log.Errorf("handlers: error getting config: %v", err)
-		return err
+	for _, api := range apis {
+		vacs, err := api.Fetch(filters, log)
+		if err != nil {
+			log.Errorf("handlers: error fetching vacancies from API: %v", err)
+			continue
+		}
+		allVacs.Objects = append(allVacs.Objects, vacs.Objects...)
 	}
 
-	var tokens types.Client
+	log.Infof("handlers: total vacancies fetched from all APIs: %d", len(allVacs.Objects))
 
-	ok, err := helpers.IsValidToken(&tokens, log)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		log.Infof("handlers: invalid token, redirecting to authorize")
-		http.Redirect(w, r, "/authorize", http.StatusFound)
-		return nil
-	}
-
-	filters, err := helpers.VacancyFilters(log)
-	if err != nil {
-		return err
-	}
-
-	reqString, err := helpers.RequestString(filters, log)
-	if err != nil {
-		return err
-	}
-
-	req, _ := http.NewRequest("GET", reqString, nil)
-	req.Header.Set("X-Api-App-Id", cfg.ClientSecret)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		log.Errorf("handlers: error fetching vacancies: %v", err)
-		return err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Errorf("handlers: error reading vacancies response body: %v", err)
-		return err
-	}
-
-	// log.Infof("handlers: vacancies response body: %s", string(body))
-
-	var vacancies types.VacanciesResponse
-
-	err = json.Unmarshal(body, &vacancies)
-	if err != nil {
-		log.Errorf("handlers: error parsing vacancies response: %v", err)
-		return err
-	}
-
-	for _, vacancy := range vacancies.Objects {
-		log.Infof("handlers: vacancy ID: %d, Profession: %s", vacancy.ID, vacancy.Profession)
-		fmt.Printf("vacancy link: %v\n", vacancy.Link)
-	}
-	return nil
+	return allVacs, nil
 }

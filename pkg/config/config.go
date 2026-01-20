@@ -11,6 +11,12 @@ type Config struct {
 	LogLevel     string
 	ClientID     string
 	ClientSecret string
+	PgUser       string
+	PgPassword   string
+	PgDB         string
+	PgHost       string
+	PgPort       string
+	PgSSLMode    string
 }
 
 func GetConfig() (Config, error) {
@@ -24,5 +30,11 @@ func GetConfig() (Config, error) {
 		LogLevel:     os.Getenv("LOG_LEVEL"),
 		ClientID:     os.Getenv("CLIENT_ID"),
 		ClientSecret: os.Getenv("CLIENT_SECRET"),
+		PgUser:       os.Getenv("PG_USER"),
+		PgPassword:   os.Getenv("PG_PASSWORD"),
+		PgDB:         os.Getenv("PG_DB"),
+		PgHost:       os.Getenv("PG_HOST"),
+		PgPort:       os.Getenv("PG_PORT"),
+		PgSSLMode:    os.Getenv("PG_SSLMODE"),
 	}, nil
 }

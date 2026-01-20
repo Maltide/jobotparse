@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/Maltide/JoBot/pkg/config"
-	"github.com/Maltide/JoBot/pkg/consts"
+	"github.com/Maltide/jobotparse/pkg/config"
+	"github.com/Maltide/jobotparse/pkg/consts"
 	"go.uber.org/zap"
 )
 

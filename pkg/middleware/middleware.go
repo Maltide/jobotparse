@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"github.com/Maltide/JoBot/pkg/helpers"
-	"github.com/Maltide/JoBot/pkg/types"
+	"github.com/Maltide/jobotparse/pkg/helpers"
+	"github.com/Maltide/jobotparse/pkg/types"
 	"go.uber.org/zap"
 )
 

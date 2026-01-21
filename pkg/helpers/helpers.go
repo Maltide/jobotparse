@@ -25,30 +25,36 @@ func Authstr() (string, error) {
 	return "https://www.superjob.ru/authorize/?client_id=" + cfg.ClientID + "&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&state=custom", nil
 }
 
-func IsValidToken(tokens *types.Client, log *zap.SugaredLogger) (bool, error) {
+func ReadTokens(log *zap.SugaredLogger) (types.Client, error) {
+	var tokens types.Client
+
 	body, err := os.ReadFile(consts.TokensFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false, nil // файла нет — токен невалиден
+			log.Error("helpers: tokens file does not exist")
+			return tokens, err // файла нет — токен невалиден
 		}
 		log.Errorf("helpers: error reading tokens file: %v", err)
-		return false, err
+		return tokens, err
 	}
 
-	err = json.Unmarshal(body, tokens)
+	err = json.Unmarshal(body, &tokens)
 	if err != nil {
 		log.Errorf("helpers: IsValidToken: error unmarshalling tokens: %v", err)
-		return false, err
+		return tokens, err
 	}
+	return tokens, nil
+}
 
+func IsValidToken(tokens *types.Client, log *zap.SugaredLogger) (bool, error) {
 	if tokens.AccessToken == "" || tokens.RefreshToken == "" {
 		log.Infof("helpers: tokens are empty")
-		return false, nil // токены пустые — невалиден
+		return false, fmt.Errorf("tokens are empty") // токены пустые — невалиден
 	}
 
 	if time.Now().Unix() >= int64(tokens.Ttl) {
 		log.Infof("helpers: token has expired")
-		return false, nil // истёк
+		return false, fmt.Errorf("token has expired") // истёк
 	}
 
 	return true, nil // токен валиден
@@ -59,19 +65,25 @@ func IsValidToken(tokens *types.Client, log *zap.SugaredLogger) (bool, error) {
 func VacancyFilters(r *http.Request, log *zap.SugaredLogger) (types.Filters, error) {
 	var filters types.Filters
 	if r == nil {
-		return filters, nil
+		log.Infof("helpers: VacancyFilters: nil request, returning empty filters")
+		return filters, fmt.Errorf("helpers: VacancyFilters: nil request")
 	}
+
 	q := r.URL.Query()
+
 	filters.Profession = strings.TrimSpace(q.Get("profession"))
+	if filters.Profession == "" {
+		return filters, fmt.Errorf("helpers: VacancyFilters: profession parameter is required")
+	}
+
 	filters.Town = strings.TrimSpace(q.Get("town"))
-	// accept both snake_case and space-separated names from query
-	if filters.SalaryFrom == "" {
-		filters.SalaryFrom = strings.TrimSpace(q.Get("salary_from"))
-	}
-	if filters.SalaryTo == "" {
-		filters.SalaryTo = strings.TrimSpace(q.Get("salary_to"))
-	}
+
+	filters.SalaryFrom = strings.TrimSpace(q.Get("salary_from"))
+
+	filters.SalaryTo = strings.TrimSpace(q.Get("salary_to"))
+
 	filters.Skills = strings.TrimSpace(q.Get("skills"))
+
 	return filters, nil
 }
 
@@ -105,10 +117,17 @@ func RequestString(filters types.Filters, log *zap.SugaredLogger) (string, error
 }
 
 func DBWrite(db *gorm.DB, vacancies types.VacanciesResponse, log *zap.SugaredLogger) error {
+	if len(vacancies.Objects) == 0 {
+		log.Errorf("helpers: DBWrite: no vacancies to write to DB")
+		return fmt.Errorf("no vacancies to write to DB")
+	}
+
 	for i := range vacancies.Objects {
 		v := &vacancies.Objects[i]
-		if v.Town != nil && v.Town.Title != "" {
+		if v.Town != nil {
 			v.TownName = v.Town.Title
+		} else {
+			v.TownName = ""
 		}
 
 		fmt.Printf("vacancy link: %v\n", v.Link)

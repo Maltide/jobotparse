@@ -2,12 +2,14 @@ package middleware
 
 import (
 	"github.com/Maltide/jobotparse/pkg/helpers"
-	"github.com/Maltide/jobotparse/pkg/types"
 	"go.uber.org/zap"
 )
 
 func BeforeRequest(log *zap.SugaredLogger) error {
-	var tokens types.Client
+	tokens, err := helpers.ReadTokens(log)
+	if err != nil {
+		return err
+	}
 
 	ok, err := helpers.IsValidToken(&tokens, log)
 	if err != nil {
@@ -18,6 +20,10 @@ func BeforeRequest(log *zap.SugaredLogger) error {
 		err := RefreshTokens(tokens.RefreshToken, log)
 		if err != nil {
 			log.Error("middleware: failed to refresh token")
+			return err
+		}
+		tokens, err = helpers.ReadTokens(log)
+		if err != nil {
 			return err
 		}
 		ok, err = helpers.IsValidToken(&tokens, log)

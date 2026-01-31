@@ -9,31 +9,35 @@ services:
       POSTGRES_DB: ${PG_DB}
     env_file:
       - .env
+    # bind Postgres port to localhost for production
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata_jobotparse:/var/lib/postgresql/data
   app:
-    build: .
+    image: "jan:3026"
     depends_on:
       - postgres
     env_file:
       - .env
+    restart: unless-stopped
     ports:
-      - "8080:8080" 
+      - "8080:8080"
     volumes:
+      - ./.env:/app/.env:ro
       - ./tokens.json:/app/tokens.json
-      - ./.env:/app/.env
-      - ./vacancies.html:/app/vacancies.html
-  # nginx:
-  #   build: ./nginx
-  #   depends_on:
-  #     - app
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./nginx/static:/usr/share/nginx/html/static:ro
+      - ./static:/app/static:ro
+  nginx:
+    build: ./nginx
+    depends_on:
+      - app
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./static:/usr/share/nginx/html/static:ro
 
 volumes:
   pgdata_jobotparse:

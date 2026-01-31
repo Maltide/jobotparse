@@ -6,5 +6,6 @@ import (
 )
 
 type VacanciesProvider interface {
+	// Fetch returns vacancies for provided filters.
 	Fetch(filters types.Filters, log *zap.SugaredLogger) (types.VacanciesResponse, error)
 }

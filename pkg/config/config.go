@@ -17,8 +17,12 @@ type Config struct {
 	PgHost       string
 	PgPort       string
 	PgSSLMode    string
+	BaseURL      string
+	AuthUser     string
+	AuthPass     string
 }
 
+// GetConfig loads configuration from .env and returns a Config.
 func GetConfig() (Config, error) {
 	err := godotenv.Load(".env")
 	if err != nil {
@@ -36,5 +40,8 @@ func GetConfig() (Config, error) {
 		PgHost:       os.Getenv("PG_HOST"),
 		PgPort:       os.Getenv("PG_PORT"),
 		PgSSLMode:    os.Getenv("PG_SSLMODE"),
+		BaseURL:      os.Getenv("BASE_URL"),
+		AuthUser:     os.Getenv("ADMIN_USER"),
+		AuthPass:     os.Getenv("ADMIN_PASS"),
 	}, nil
 }

@@ -8,6 +8,6 @@ RUN go build -o main .
 FROM alpine:latest
 WORKDIR /app
 COPY --from=build /app/main .
-COPY --from=build /app/vacancies.html .
+COPY --from=build /app/static ./static
 EXPOSE 8080
 CMD ["./main"]

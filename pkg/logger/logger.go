@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// GetLogger builds a Sugared zap logger using the provided log level string.
 func GetLogger(loglevel string) (*zap.SugaredLogger, error) {
 	cfg := zap.NewProductionConfig()
 

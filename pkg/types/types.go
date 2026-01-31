@@ -1,5 +1,6 @@
 package types
 
+// Client represents SuperJob OAuth tokens as returned by their API.
 type Client struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -7,6 +8,8 @@ type Client struct {
 	Ttl          int    `json:"ttl"`
 }
 
+// Vacancy is a normalized vacancy entity persisted into Postgres.
+// The struct uses both JSON tags and GORM tags (for DB).
 type Vacancy struct {
 	ID            int    `gorm:"primaryKey;autoIncrement" json:"-"` // локальный PK в БД (автоинкремент)
 	ExternalID    int    `json:"id" gorm:"uniqueIndex"`             // ID вакансии из внешнего API
@@ -30,15 +33,18 @@ type Vacancy struct {
 	TownName      string `json:"-" gorm:"column:town_name"`         // Название города
 }
 
+// VacanciesResponse is the API response wrapper.
 type VacanciesResponse struct {
 	Objects []Vacancy `json:"objects"`
 }
 
+// Town is a nested object inside a vacancy.
 type Town struct {
 	ID    int    `json:"id"`
 	Title string `json:"title"`
 }
 
+// Filters contains user-provided search parameters.
 type Filters struct {
 	Profession string
 	Town       string

@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// NewSuperJobClient creates a SuperJob API client, clientSecret is used as X-Api-App-Id header for SuperJob requests.
 func NewSuperJobClient(client *http.Client, clientSecret string) *SuperJob {
 	if client == nil {
 		client = http.DefaultClient
@@ -20,6 +21,7 @@ func NewSuperJobClient(client *http.Client, clientSecret string) *SuperJob {
 	}
 }
 
+// Fetch implements interfaces.VacanciesProvider by querying SuperJob vacancies API.
 func (s SuperJob) Fetch(filters types.Filters, log *zap.SugaredLogger) (types.VacanciesResponse, error) {
 	log.Infof("handlers: vacancies endpoint hit")
 
@@ -29,6 +31,7 @@ func (s SuperJob) Fetch(filters types.Filters, log *zap.SugaredLogger) (types.Va
 	}
 
 	req, _ := http.NewRequest("GET", reqString, nil)
+	// SuperJob uses this header to identify the application.
 	req.Header.Set("X-Api-App-Id", s.clientSecret)
 
 	resp, err := s.client.Do(req)

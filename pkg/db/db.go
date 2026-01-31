@@ -9,6 +9,8 @@ import (
 	"gorm.io/gorm"
 )
 
+// ConnDB connects to PostgreSQL using configuration from .env.
+// It retries a few times because in Docker Compose the DB container may not be ready when the app starts.
 func ConnDB(log *zap.SugaredLogger) (*gorm.DB, error) {
 	cfg, err := config.GetConfig()
 	if err != nil {
@@ -16,6 +18,7 @@ func ConnDB(log *zap.SugaredLogger) (*gorm.DB, error) {
 		return nil, err
 	}
 
+	// DSN format for the postgres driver.
 	dsn := "host=" + cfg.PgHost + " user=" + cfg.PgUser + " password=" + cfg.PgPassword + " dbname=" + cfg.PgDB + " port=" + cfg.PgPort + " sslmode=" + cfg.PgSSLMode
 
 	var lastErr error
@@ -27,6 +30,7 @@ func ConnDB(log *zap.SugaredLogger) (*gorm.DB, error) {
 		if err == nil {
 			sqlDB, err := db.DB()
 			if err == nil {
+				// Verify actual connectivity (gorm.Open may succeed before DB accepts connections).
 				errPing := sqlDB.Ping()
 				if errPing == nil {
 					return db, nil

@@ -13,6 +13,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// GetServer wires all HTTP routes and starts listening on :8080.
+//
+// It provides:
+// - /auth: local login + redirect to SuperJob OAuth
+// - /callback: exchange code for tokens
+// - /vacancies: UI + fetch vacancies
 func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.VacanciesProvider) error {
 	router := http.NewServeMux()
 
@@ -28,6 +34,7 @@ func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.Vaca
 	})
 
 	router.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		// /callback is the OAuth redirect endpoint from SuperJob.
 		err := middleware.GetAccessToken(w, r, log)
 		if err != nil {
 			log.Errorf("from server.go: error in get access token middleware: %v", err)
@@ -38,7 +45,7 @@ func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.Vaca
 		// If it's a plain GET with no query parameters — serve the HTML form (no results)
 		if r.Method == http.MethodGet && len(r.URL.Query()) == 0 {
 			// render template with empty data (Searched=false)
-			tmpl, terr := template.ParseFiles("vacancies.html")
+			tmpl, terr := template.ParseFiles("static/vacancies.html")
 			if terr != nil {
 				log.Errorf("server: template parse error: %v", terr)
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -52,7 +59,7 @@ func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.Vaca
 			return
 		}
 
-		// Run middleware to ensure tokens are valid / refreshed
+		// Ensure tokens are valid (refresh if needed) before hitting external APIs.
 		if err := middleware.BeforeRequest(log); err != nil {
 			log.Infof("server: BeforeRequest failed, redirecting to auth")
 			http.Redirect(w, r, "/auth", http.StatusFound)
@@ -89,7 +96,7 @@ func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.Vaca
 			}
 		}
 
-		tmpl, terr := template.ParseFiles("vacancies.html")
+		tmpl, terr := template.ParseFiles("static/vacancies.html")
 		if terr != nil {
 			log.Errorf("handlers: template parse error: %v", terr)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)

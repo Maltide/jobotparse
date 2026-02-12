@@ -17,7 +17,7 @@ func TestDBWrite(t *testing.T) {
 		t.Fatalf("failed to initialize test database: %v", err)
 	}
 
-	db.AutoMigrate(&types.Vacancy{})
+	db.AutoMigrate(&types.VacancySJ{})
 
 	tests := []struct {
 		name      string
@@ -28,7 +28,7 @@ func TestDBWrite(t *testing.T) {
 		{
 			name: "simple vacancy",
 			vacancies: types.VacanciesResponse{
-				Objects: []types.Vacancy{
+				Objects: []types.VacancySJ{
 					{
 						ExternalID: 1,
 						Profession: "developer",
@@ -38,7 +38,7 @@ func TestDBWrite(t *testing.T) {
 				},
 			},
 			want: types.VacanciesResponse{
-				Objects: []types.Vacancy{
+				Objects: []types.VacancySJ{
 					{
 						ExternalID: 1,
 						Profession: "developer",
@@ -52,7 +52,7 @@ func TestDBWrite(t *testing.T) {
 		{
 			name: "vacancy with nil town",
 			vacancies: types.VacanciesResponse{
-				Objects: []types.Vacancy{
+				Objects: []types.VacancySJ{
 					{
 						ExternalID: 2,
 						Profession: "designer",
@@ -62,7 +62,7 @@ func TestDBWrite(t *testing.T) {
 				},
 			},
 			want: types.VacanciesResponse{
-				Objects: []types.Vacancy{
+				Objects: []types.VacancySJ{
 					{
 						ExternalID: 2,
 						Profession: "designer",
@@ -76,7 +76,7 @@ func TestDBWrite(t *testing.T) {
 		{
 			name: "multiple vacancies",
 			vacancies: types.VacanciesResponse{
-				Objects: []types.Vacancy{
+				Objects: []types.VacancySJ{
 					{
 						ExternalID: 3,
 						Profession: "manager",
@@ -92,7 +92,7 @@ func TestDBWrite(t *testing.T) {
 				},
 			},
 			want: types.VacanciesResponse{
-				Objects: []types.Vacancy{
+				Objects: []types.VacancySJ{
 					{
 						ExternalID: 3,
 						Profession: "manager",
@@ -112,10 +112,10 @@ func TestDBWrite(t *testing.T) {
 		{
 			name: "empty vacancies",
 			vacancies: types.VacanciesResponse{
-				Objects: []types.Vacancy{},
+				Objects: []types.VacancySJ{},
 			},
 			want: types.VacanciesResponse{
-				Objects: []types.Vacancy{},
+				Objects: []types.VacancySJ{},
 			},
 			wantErr: true,
 		},
@@ -123,7 +123,7 @@ func TestDBWrite(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := DBWrite(db, tt.vacancies, log)
+			err := DBWriteSJ(db, tt.vacancies, log)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("DBWrite() error = %v, wantErr %v", err, tt.wantErr)
 			}

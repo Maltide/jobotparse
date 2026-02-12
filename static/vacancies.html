@@ -12,6 +12,7 @@
   .row input{flex:1;}
   button{margin-top:12px;width:100%;padding:12px;background:#fff;color:#000;border:none;border-radius:6px;cursor:pointer;}
   ::placeholder{color:#bbb;}
+  .error{margin-top:12px;color:#f88;font-size:14px;line-height:1.3;}
 </style>
 </head>
 <body>
@@ -20,21 +21,80 @@
       <input name="profession" type="text" placeholder="Например: golang" />
     </label>
     <label>Город
-      <input name="city" type="text" placeholder="Например: Москва" />
+      <input name="town" type="text" placeholder="Например: Москва" />
     </label>
     <div class="row">
       <label>Зарплата от
-        <input name="salary_min" type="number" placeholder="0" />
+        <input name="salary_from" type="number" placeholder="0" />
       </label>
       <label>до
-        <input name="salary_max" type="number" placeholder="0" />
+        <input name="salary_to" type="number" placeholder="0" />
       </label>
     </div>
     <label>Навыки (через запятую)
       <input name="skills" type="text" placeholder="go, grpc, sql" />
     </label>
     <button type="submit">Поиск</button>
+
+    <div id="formError" class="error" {{if .Error}}style=""{{else}}style="display:none;"{{end}}>
+      {{.Error}}
+    </div>
   </form>
+
+  <script>
+    (function () {
+      const form = document.getElementById('vacForm');
+      const errorBox = document.getElementById('formError');
+
+      function showError(msg) {
+        errorBox.textContent = msg;
+        errorBox.style.display = '';
+      }
+
+      function clearError() {
+        // если ошибка пришла с сервера, мы её не трогаем до следующей попытки
+        errorBox.textContent = '';
+        errorBox.style.display = 'none';
+      }
+
+      form.addEventListener('submit', function (e) {
+        const profession = (form.elements['profession'].value || '').trim();
+        const salaryFromRaw = (form.elements['salary_from'].value || '').trim();
+        const salaryToRaw = (form.elements['salary_to'].value || '').trim();
+
+        if (!profession) {
+          e.preventDefault();
+          showError('Профессия обязательна. Например: golang');
+          return;
+        }
+
+        // Проверяем зарплатные границы, если обе заполнены.
+        if (salaryFromRaw && salaryToRaw) {
+          const salaryFrom = Number(salaryFromRaw);
+          const salaryTo = Number(salaryToRaw);
+          if (!Number.isFinite(salaryFrom) || !Number.isFinite(salaryTo)) {
+            e.preventDefault();
+            showError('Зарплата должна быть числом.');
+            return;
+          }
+          if (salaryFrom < 0 || salaryTo < 0) {
+            e.preventDefault();
+            showError('Зарплата не может быть отрицательной.');
+            return;
+          }
+          if (salaryFrom > salaryTo) {
+            e.preventDefault();
+            showError('Зарплата «от» не может быть больше, чем «до».');
+            return;
+          }
+        }
+
+        // Если пользователь исправил поля — убираем прошлую ошибку.
+        clearError();
+      });
+    })();
+  </script>
+
   {{/* Results area: .Links is []string */}}
   <div style="max-width:520px;width:100%;margin-top:16px;">
     {{if .Links}}

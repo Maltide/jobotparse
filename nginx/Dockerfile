@@ -1,8 +1,11 @@
 # Используем официальный образ nginx
 FROM nginx:stable
 
-# Копируем свой конфиг nginx внутрь контейнера
-COPY nginx.conf /etc/nginx/nginx.conf
+# Генерируем конфиг при старте контейнера:
+# - если сертификата ещё нет, запускаем только HTTP (нужно для ACME HTTP-01)
+# - когда certbot положит сертификат, контейнер на рестарте включит HTTPS
+COPY templates/ /etc/nginx/templates/
+COPY docker-entrypoint.d/ /docker-entrypoint.d/
 
 # (Опционально) Копируем статику, если нужно
 # COPY ../static/ /usr/share/nginx/html/

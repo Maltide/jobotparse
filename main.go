@@ -31,7 +31,7 @@ func main() {
 		return
 	}
 
-	err = database.AutoMigrate(&types.Vacancy{})
+	err = database.AutoMigrate(&types.VacancySJ{})
 	if err != nil {
 		log.Errorf("main: error automigrating Vacancy table: %v", err)
 		return

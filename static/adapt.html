@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Адаптация резюме</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:Inter, Arial, sans-serif;background:#0b1220;color:#e6eef8;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+    .card{width:520px;padding:20px;border-radius:8px;background:#071029;border:1px solid #123;box-sizing:border-box}
+    h2{margin:0 0 12px 0;font-size:18px}
+    label{display:block;margin-bottom:10px;font-size:14px;color:#cfe8ff}
+    input[type="url"],input[type="file"]{width:100%;padding:10px;border-radius:6px;border:1px solid #234;background:transparent;color:inherit;box-sizing:border-box}
+    .note{font-size:12px;color:#9fb6c8;margin-top:6px}
+    .row{display:flex;gap:8px}
+    button{margin-top:14px;padding:12px;width:100%;border-radius:6px;border:none;background:#61dafb;color:#002;font-weight:600;cursor:pointer}
+    button[disabled]{opacity:0.7;cursor:not-allowed}
+    .msg{margin-top:12px;padding:10px;border-radius:6px;background:#05121a;border:1px solid #123}
+    .msg.error{border-color:#5a2230;color:#ffd1d1}
+    .msg.ok{border-color:#204a3a;color:#d3ffe8}
+    pre{margin:0;white-space:pre-wrap;word-break:break-word;color:#aee}
+  </style>
+</head>
+<body>
+  <form class="card" id="adaptForm" action="/adapt" method="POST" enctype="multipart/form-data" novalidate>
+    <h2>Адаптация резюме</h2>
+
+    <label for="vacancy_url">Ссылка на вакансию</label>
+    <input id="vacancy_url" name="vacancy_url" type="url" placeholder="https://example.com/vacancy/123" required />
+
+    <label for="resume_pdf">Загрузите PDF резюме</label>
+    <input id="resume_pdf" name="resume_pdf" type="file" accept="application/pdf,.pdf" required />
+    <div class="note">
+      Поля: <strong>vacancy_url</strong> и <strong>resume_pdf</strong>. Отправка — POST на <code>/adapt</code>.
+      Ответ — PDF файл.
+    </div>
+
+    <button type="submit">Отправить</button>
+
+    <div id="result" class="msg" style="display:none">
+      <pre id="resultText"></pre>
+    </div>
+  </form>
+
+  <script>
+    (function () {
+      const form = document.getElementById('adaptForm');
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const result = document.getElementById('result');
+      const resultText = document.getElementById('resultText');
+
+      function show(type, text) {
+        result.className = 'msg ' + (type || '');
+        result.style.display = '';
+        resultText.textContent = text;
+      }
+
+      function clear() {
+        result.style.display = 'none';
+        resultText.textContent = '';
+      }
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        clear();
+
+        const vacancyUrl = (form.elements['vacancy_url'].value || '').trim();
+        const fileInput = form.elements['resume_pdf'];
+        const file = fileInput && fileInput.files && fileInput.files[0];
+
+        if (!vacancyUrl) {
+          show('error', 'Ошибка: поле "Ссылка на вакансию" обязательно.');
+          return;
+        }
+        if (!file) {
+          show('error', 'Ошибка: нужно выбрать PDF файл резюме.');
+          return;
+        }
+        // Некоторые браузеры/ОС не выставляют корректный MIME для PDF (file.type может быть пустым).
+        // Поэтому проверяем: (MIME == application/pdf) ИЛИ (расширение .pdf).
+        const name = (file.name || '').toLowerCase();
+        const looksLikePdfByName = name.endsWith('.pdf');
+        const looksLikePdfByType = !file.type || file.type === 'application/pdf';
+        if (!looksLikePdfByName && !looksLikePdfByType) {
+          show('error', 'Ошибка: файл должен быть PDF (.pdf).');
+          return;
+        }
+
+        const fd = new FormData(form);
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Отправка...';
+
+        try {
+          const resp = await fetch('/adapt', {
+            method: 'POST',
+            body: fd,
+          });
+
+          if (!resp.ok) {
+            const text = await resp.text().catch(() => '');
+            let msg = text || ('Ошибка: HTTP ' + resp.status);
+            if (resp.status === 502) {
+              msg = 'Ollama недоступна (502). Проверь, что Ollama запущена и OLLAMA_BASE_URL правильный.';
+            }
+            show('error', msg);
+            return;
+          }
+
+          const ct = (resp.headers.get('content-type') || '').toLowerCase();
+          if (!ct.includes('application/pdf')) {
+            const text = await resp.text().catch(() => '');
+            show('error', text || 'Ошибка: сервер вернул не PDF.');
+            return;
+          }
+
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'adapted_resume.pdf';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+
+          show('ok', 'Готово: PDF скачан.');
+        } catch (err) {
+          show('error', 'Ошибка сети: не удалось отправить запрос на сервер.');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Отправить';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

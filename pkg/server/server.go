@@ -22,6 +22,12 @@ import (
 func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.VacanciesProvider) error {
 	router := http.NewServeMux()
 
+	type vacanciesPageData struct {
+		Links    []string
+		Searched bool
+		Error    string
+	}
+
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Сервер запущен")
 	})
@@ -51,10 +57,7 @@ func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.Vaca
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
 				return
 			}
-			data := struct {
-				Links    []string
-				Searched bool
-			}{Links: nil, Searched: false}
+			data := vacanciesPageData{Links: nil, Searched: false}
 			tmpl.Execute(w, data)
 			return
 		}
@@ -69,7 +72,17 @@ func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.Vaca
 		filters, err := helpers.VacancyFilters(r, log)
 		if err != nil {
 			log.Errorf("from server.go: error parsing vacancy filters: %v", err)
-			http.Error(w, "Invalid filters", http.StatusBadRequest)
+			tmpl, terr := template.ParseFiles("static/vacancies.html")
+			if terr != nil {
+				log.Errorf("server: template parse error: %v", terr)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			// Render the same page with an inline error message so the user doesn't land on a blank error page.
+			data := vacanciesPageData{Links: nil, Searched: false, Error: "Неверные фильтры: профессия обязательна."}
+			if err := tmpl.Execute(w, data); err != nil {
+				log.Errorf("server: template execute error: %v", err)
+			}
 			return
 		}
 
@@ -80,7 +93,23 @@ func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.Vaca
 			return
 		}
 
-		err = helpers.DBWrite(database, vacs, log)
+		// 0 вакансий — это нормальный результат поиска, а не ошибка БД.
+		// Просто покажем страницу с пустым результатом.
+		if len(vacs.Objects) == 0 {
+			tmpl, terr := template.ParseFiles("static/vacancies.html")
+			if terr != nil {
+				log.Errorf("handlers: template parse error: %v", terr)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			data := vacanciesPageData{Links: nil, Searched: true}
+			if err := tmpl.Execute(w, data); err != nil {
+				log.Errorf("handlers: template execute error: %v", err)
+			}
+			return
+		}
+
+		err = helpers.DBWriteSJ(database, vacs, log)
 		if err != nil {
 			http.Error(w, "error writing vacancies to DB", http.StatusInternalServerError)
 			log.Errorf("from server.go: error writing vacancies to DB: %v", err)
@@ -103,15 +132,34 @@ func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.Vaca
 			return
 		}
 
-		data := struct {
-			Links    []string
-			Searched bool
-		}{Links: links, Searched: true}
+		data := vacanciesPageData{Links: links, Searched: true}
 
 		if err := tmpl.Execute(w, data); err != nil {
 			log.Errorf("handlers: template execute error: %v", err)
 			return
 		}
+	})
+
+	router.HandleFunc("/adapt", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			tmpl, terr := template.ParseFiles("static/adapt.html")
+			if terr != nil {
+				log.Errorf("server: template parse error: %v", terr)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			tmpl.Execute(w, nil)
+			return
+		}
+
+		if r.Method == http.MethodPost {
+			if err := handlers.AdaptResume(w, r, database, log); err != nil {
+				log.Errorf("server: AdaptResume error: %v", err)
+			}
+			return
+		}
+
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	})
 
 	err := http.ListenAndServe(":8080", router)

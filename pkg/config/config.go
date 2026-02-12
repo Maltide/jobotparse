@@ -24,10 +24,14 @@ type Config struct {
 
 // GetConfig loads configuration from .env and returns a Config.
 func GetConfig() (Config, error) {
-	err := godotenv.Load(".env")
-	if err != nil {
-		fmt.Printf("config: error loading env: %v", err)
-		return Config{}, fmt.Errorf("config: error loading .env file: %v", err)
+	// В Docker обычно используется env_file/переменные окружения, поэтому .env внутри контейнера может отсутствовать.
+	// Если .env есть — подхватим. Если нет — продолжаем работать только с env vars.
+	if _, statErr := os.Stat(".env"); statErr == nil {
+		if err := godotenv.Load(".env"); err != nil {
+			fmt.Printf("config: failed to load .env: %v\n", err)
+		}
+	} else if !os.IsNotExist(statErr) {
+		fmt.Printf("config: .env stat error: %v\n", statErr)
 	}
 
 	return Config{

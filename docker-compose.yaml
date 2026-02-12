@@ -9,25 +9,46 @@ services:
       POSTGRES_DB: ${PG_DB}
     env_file:
       - .env
-    # bind Postgres port to localhost for production
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata_jobotparse:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER} -d ${PG_DB} -h 127.0.0.1 -p 5432"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
   app:
-    image: "jan:3026"
+    image: "jobotparse:latest"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    pull_policy: never
     depends_on:
       - postgres
     env_file:
       - .env
+    extra_hosts:
+      # Linux: позволяет контейнеру достучаться до сервисов на хосте
+      # (например, Ollama на ПК по адресу http://host.docker.internal:11434)
+      - "host.docker.internal:host-gateway"
+    environment:
+      # Ollama на ПК (если Ollama крутится на этом же компьютере)
+      # Важно: host.docker.internal в Linux часто резолвится в docker0 (172.17.0.1).
+      # Удобнее ходить на IP docker-bridge, где живёт этот compose-проект (обычно 172.19.0.1).
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://172.19.0.1:11434}
+      # Имя модели в Ollama library
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # По умолчанию слушаем только на localhost.
+      # Если нужно доступ из локальной сети по http://<PC-IP>:8080 — выставь APP_BIND_ADDR=0.0.0.0
+      - "${APP_BIND_ADDR:-127.0.0.1}:8080:8080"
     volumes:
-      - ./.env:/app/.env:ro
-      - ./tokens.json:/app/tokens.json
+      - ./data:/app/data
       - ./static:/app/static:ro
   nginx:
+    profiles:
+      # Включай только когда реально нужен reverse-proxy и 80/443 свободны.
+      - prod
     build: ./nginx
     depends_on:
       - app
@@ -36,9 +57,20 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
       - ./static:/usr/share/nginx/html/static:ro
+
+  certbot:
+    profiles:
+      - prod
+    image: certbot/certbot:latest
+    restart: "no"
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+
 
 volumes:
   pgdata_jobotparse:
-  
+

@@ -24,7 +24,7 @@ func ConnDB(log *zap.SugaredLogger) (*gorm.DB, error) {
 	var lastErr error
 	var db *gorm.DB
 
-	maxattempts := 3
+	maxattempts := 12
 	for attempt := 1; attempt <= maxattempts; attempt++ {
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		if err == nil {
@@ -42,7 +42,12 @@ func ConnDB(log *zap.SugaredLogger) (*gorm.DB, error) {
 
 		lastErr = err
 		log.Infof("db: ConnDB: connect attempt %d failed: %v", attempt, lastErr)
-		time.Sleep(time.Second)
+		// Небольшой backoff: 1s, 2s, 3s ... до 5s
+		sleepSec := attempt
+		if sleepSec > 5 {
+			sleepSec = 5
+		}
+		time.Sleep(time.Duration(sleepSec) * time.Second)
 	}
 	return nil, lastErr
 }

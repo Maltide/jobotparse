@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/Maltide/jobotparse/pkg/config"
 	"github.com/Maltide/jobotparse/pkg/consts"
@@ -40,12 +41,18 @@ func ProcessAccessToken(code string, log *zap.SugaredLogger) error {
 		return err
 	}
 
-	log.Infof("response access body: %s", string(body))
+	// НЕ логируем body: там access/refresh токены (секреты).
+	log.Info("received access token response from superjob")
 
 	// Store tokens with read permissions for the app user.
-	// Mode 0644 means: owner read/write (6), group read (4), others read (4).
-	// The leading 0 denotes an octal literal.
-	err = os.WriteFile(consts.TokensFilePath, body, 0644)
+	// Mode 0600 means: owner read/write, no access for group/others.
+	if dir := filepath.Dir(consts.TokensFilePath); dir != "." {
+		if mkErr := os.MkdirAll(dir, 0700); mkErr != nil {
+			log.Errorf("fail to create tokens dir: %v", mkErr)
+			return mkErr
+		}
+	}
+	err = os.WriteFile(consts.TokensFilePath, body, 0600)
 	if err != nil {
 		log.Errorf("fail to write tokens file: %v", err)
 		return err
@@ -79,9 +86,16 @@ func RefreshTokens(refToken string, log *zap.SugaredLogger) error {
 		return err
 	}
 
-	log.Infof("response refresh body: %s", string(body))
+	// НЕ логируем body: там токены (секреты).
+	log.Info("received refresh token response from superjob")
 
-	err = os.WriteFile(consts.TokensFilePath, body, 0644)
+	if dir := filepath.Dir(consts.TokensFilePath); dir != "." {
+		if mkErr := os.MkdirAll(dir, 0700); mkErr != nil {
+			log.Errorf("fail to create tokens dir: %v", mkErr)
+			return mkErr
+		}
+	}
+	err = os.WriteFile(consts.TokensFilePath, body, 0600)
 	if err != nil {
 		log.Errorf("fail to write tokens file: %v", err)
 		return err

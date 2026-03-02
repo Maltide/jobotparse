@@ -9,6 +9,7 @@ import (
 	"github.com/Maltide/jobotparse/pkg/helpers"
 	"github.com/Maltide/jobotparse/pkg/interfaces"
 	"github.com/Maltide/jobotparse/pkg/middleware"
+	"github.com/Maltide/jobotparse/pkg/ollama"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -19,7 +20,7 @@ import (
 // - /auth: local login + redirect to SuperJob OAuth
 // - /callback: exchange code for tokens
 // - /vacancies: UI + fetch vacancies
-func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.VacanciesProvider) error {
+func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.VacanciesProvider, ollamaSession *ollama.ChatSession) error {
 	router := http.NewServeMux()
 
 	type vacanciesPageData struct {
@@ -109,13 +110,6 @@ func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.Vaca
 			return
 		}
 
-		err = helpers.DBWriteSJ(database, vacs, log)
-		if err != nil {
-			http.Error(w, "error writing vacancies to DB", http.StatusInternalServerError)
-			log.Errorf("from server.go: error writing vacancies to DB: %v", err)
-			return
-		}
-
 		// collect links and render template with results
 		links := []string{}
 		for i := range vacs.Objects {
@@ -153,22 +147,40 @@ func GetServer(log *zap.SugaredLogger, database *gorm.DB, apis []interfaces.Vaca
 		}
 
 		if r.Method == http.MethodPost {
-			if err := handlers.AdaptResume(w, r, database, log); err != nil {
-				log.Errorf("server: AdaptResume error: %v", err)
+			if err := handlers.AdaptResumeWithDeps(w, r, ollamaSession, log); err != nil {
+				log.Errorf("server: error in AdaptResumeWithDeps: %v", err)
+				return
 			}
 			return
 		}
-
+		log.Errorf("server: method not allowed for /adapt: %s", r.Method)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	})
 
+	router.HandleFunc("/adapt/iterate", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			tmpl, terr := template.ParseFiles("static/adapt.html")
+			if terr != nil {
+				log.Errorf("server: template parse error: %v", terr)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			tmpl.Execute(w, nil)
+			return
+		}
+
+		if err := handlers.AdaptIterate(w, r, ollamaSession, log); err != nil {
+			log.Errorf("server: error in AdaptIterate: %v", err)
+			return
+		}
+	})
+
+	log.Info("server starting on port 8080")
 	err := http.ListenAndServe(":8080", router)
 	if err != nil {
 		log.Errorf("fail to create server: %v", err)
 		return err
 	}
-
-	log.Info("server started on port 8080")
 
 	return nil
 }

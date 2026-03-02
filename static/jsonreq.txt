@@ -1,0 +1,91 @@
+Твоя задача: преобразовать РОВНО это резюме ниже в JSON строго по СХЕМЕ.
+
+ЖЁСТКИЕ ПРАВИЛА ФОРМАТА:
+0) Первый символ ответа — '{', последний — '}'. Верни ТОЛЬКО валидный JSON-объект.
+1) Никакого Markdown, никаких ```json, никаких комментариев, никакого текста до/после.
+
+ЖЁСТКИЕ ПРАВИЛА ПРАВДИВОСТИ:
+2) Заполняй поля ТОЛЬКО фактами, которые явно есть в резюме ниже. Ничего не придумывай.
+3) Если факта нет — НЕ добавляй поле в JSON.
+  Исключение: если в резюме указано "по настоящее время"/"present", то workExperience[].endDate должен быть СТРОГО строкой "настоящее время".
+  Для массивов: если фактов нет — ставь [] только если поле по схеме является массивом.
+
+ПРАВИЛА ПРО ЗАПРЕТ ВЫДУМОК В ТЕКСТЕ:
+4) НЕЛЬЗЯ писать "N+ лет опыта" или любые числа про стаж, если это не написано в резюме явно.
+
+ПРАВИЛА ДЛЯ КОНКРЕТНЫХ ПОЛЕЙ:
+5) basics.contacts — ОДНА строка. Не объект.
+6) preferences.workFormats — массив значений только из: ["onsite","remote","hybrid"].
+   Сопоставляй:
+   - "офис/на месте работодателя" => "onsite"
+   - "удаленно/remote" => "remote"
+   - "гибрид" => "hybrid"
+
+ПРАВИЛА ДЛЯ НАВЫКОВ (КРИТИЧНО):
+7) skills.items: добавляй ТОЛЬКО навыки, которые ЯВНО перечислены в резюме (например, в “Ключевые компетенции”, “Навыки”, “Стек:”).
+   - НЕ переводи навыки на другой язык.
+   - НЕ перефразируй (не заменяй синонимами).
+   - НЕ добавляй новые навыки.
+   - Убери дубли: один и тот же навык должен встречаться один раз (сравнивай строки после trim).
+
+ДАТЫ:
+8) Если есть точный месяц: "YYYY-MM". Если только год: "YYYY".
+  Если в резюме написано "по настоящее время"/"present" — endDate = "настоящее время" (строго эта фраза, не null).
+
+СХЕМА (ключи и типы должны совпасть 1-в-1):
+{
+  "basics": {
+    "fullName": null,
+    "gender": null,
+    "age": null,
+    "birthDate": null,
+    "contacts": null,
+    "location": {
+      "city": null,
+      "country": null
+    },
+    "citizenship": null,
+    "workPermit": null,
+    "relocation": null,
+    "businessTrips": null
+  },
+  "preferences": {
+    "title": null,
+    "salary": null,
+    "specializations": [],
+    "employmentType": null,
+    "workFormats": []
+  },
+  "workExperience": [
+    {
+      "company": null,
+      "companyWebsite": null,
+      "industry": null,
+      "position": null,
+      "startDate": null,
+      "endDate": null,
+      "location": null,
+      "description": []
+    }
+  ],
+  "education": [
+    {
+      "level": null,
+      "institution": null,
+      "facultyOrProgram": null,
+      "degree": null,
+      "startYear": null,
+      "endYear": null,
+      "location": null
+    }
+  ],
+  "skills": {
+    "items": [],
+    "languages": [
+      { "name": null, "level": null }
+    ]
+  },
+  "about": null
+}
+Не используй поля со значением null (кроме workExperience[].endDate, см. правило 3).
+Не повторяй термины близкие по смыслу "Go, Golang - что-то одно" "Postgre и PostrgreSQL - что-то одно" и т.д.

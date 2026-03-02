@@ -41,7 +41,7 @@ func (s SuperJob) Fetch(filters types.Filters, log *zap.SugaredLogger) (types.Va
 			return v
 		}
 
-		filtered := make([]types.VacancySJ, 0, len(v.Objects))
+		filtered := make([]types.Vacancy, 0, len(v.Objects))
 		for i := range v.Objects {
 			vac := v.Objects[i]
 

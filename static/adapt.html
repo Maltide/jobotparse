@@ -5,114 +5,954 @@
   <title>Адаптация резюме</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body{font-family:Inter, Arial, sans-serif;background:#0b1220;color:#e6eef8;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-    .card{width:520px;padding:20px;border-radius:8px;background:#071029;border:1px solid #123;box-sizing:border-box}
+    body{font-family:Inter, Arial, sans-serif;background:#0b1220;color:#e6eef8;display:flex;align-items:stretch;justify-content:stretch;height:100vh;margin:0}
+    /*
+      .card — теперь почти на весь экран (90vw, 90vh), чтобы чат был максимально виден.
+      #chat — увеличен до 70vh, с прокруткой.
+    */
+    /* Allow the card to grow with content but cap at viewport height; enable internal scroll when necessary */
+    /* Full-bleed app container: no outer borders/radius so chat has maximum width */
+    .card{width:100vw;height:100vh;max-width:none;max-height:none;padding:16px;border-radius:0;background:#071029;border:none;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden}
     h2{margin:0 0 12px 0;font-size:18px}
-    label{display:block;margin-bottom:10px;font-size:14px;color:#cfe8ff}
-    input[type="url"],input[type="file"]{width:100%;padding:10px;border-radius:6px;border:1px solid #234;background:transparent;color:inherit;box-sizing:border-box}
-    .note{font-size:12px;color:#9fb6c8;margin-top:6px}
+    label{display:block;margin-bottom:10px;font-size:15px;color:#cfe8ff}
+    input[type="url"],input[type="text"],input[type="file"]{width:100%;padding:12px;border-radius:6px;border:1px solid #234;background:transparent;color:inherit;box-sizing:border-box;font-size:16px}
+    select{width:100%;padding:12px;border-radius:6px;border:1px solid #234;background:transparent;color:inherit;box-sizing:border-box;font-size:16px}
+    textarea{width:100%;padding:12px;border-radius:6px;border:1px solid #234;background:transparent;color:inherit;box-sizing:border-box;font-size:16px}
+    .note{font-size:13px;color:#9fb6c8;margin-top:6px}
+    .field-error{color:#ff7575;font-size:13px;margin-top:6px}
     .row{display:flex;gap:8px}
     button{margin-top:14px;padding:12px;width:100%;border-radius:6px;border:none;background:#61dafb;color:#002;font-weight:600;cursor:pointer}
     button[disabled]{opacity:0.7;cursor:not-allowed}
-    .msg{margin-top:12px;padding:10px;border-radius:6px;background:#05121a;border:1px solid #123}
+    .msg{margin-top:12px;padding:10px;border-radius:6px;background:#05121a;border:1px solid #123;position:relative}
     .msg.error{border-color:#5a2230;color:#ffd1d1}
     .msg.ok{border-color:#204a3a;color:#d3ffe8}
+    .msg .role{font-size:12px;color:#9fb6c8;margin-bottom:6px}
+    /* small icon-style copy button positioned inside message */
+    .copy-btn{position:absolute;top:8px;right:8px;border:1px solid transparent;background:transparent;color:#cfe8ff;border-radius:6px;padding:4px;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;cursor:pointer}
+    .copy-btn svg{width:18px;height:18px;display:block;fill:currentColor;opacity:0.9}
+    .copy-btn:hover{background:rgba(97,218,251,0.06);color:#61dafb;border-color:rgba(97,218,251,0.12)}
+    .copy-btn:active{transform:translateY(1px)}
     pre{margin:0;white-space:pre-wrap;word-break:break-word;color:#aee}
+    .layout{display:flex;gap:16px;flex:1;min-height:0}
+    .pane{flex:1;min-width:0;overflow:auto;padding:12px;border:1px solid #123;border-radius:10px;box-sizing:border-box}
+    .picker{position:relative}
+    .picker-field{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:44px;padding:10px 12px;border-radius:6px;border:1px solid #234;background:transparent;box-sizing:border-box;cursor:pointer}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+    .chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid #234;background:#05121a;color:#e6eef8;font-size:14px;white-space:nowrap}
+    .chip-x{border:none;background:transparent;color:#cfe8ff;cursor:pointer;padding:0;line-height:1;font-size:16px}
+    .chip-x:hover{color:#61dafb}
+    .picker-add{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;border:1px solid #234;background:transparent;color:#cfe8ff;cursor:pointer;flex:0 0 auto}
+    .picker-add:hover{border-color:#61dafb;color:#61dafb}
+    .dropdown{position:absolute;left:0;right:0;top:calc(100% + 6px);background:#05121a;border:1px solid #234;border-radius:8px;padding:6px;z-index:50;display:none}
+    .dropdown.open{display:block}
+    .dropdown-item{width:100%;text-align:left;padding:10px 10px;border-radius:6px;border:none;background:transparent;color:#e6eef8;cursor:pointer}
+    .dropdown-item:hover{background:#071029}
+    @media (max-width: 900px){
+      .layout{flex-direction:column}
+    }
   </style>
 </head>
 <body>
-  <form class="card" id="adaptForm" action="/adapt" method="POST" enctype="multipart/form-data" novalidate>
-    <h2>Адаптация резюме</h2>
+  <div class="card" id="adaptCard">
+    <h2>Адаптация резюме (чат)</h2>
 
-    <label for="vacancy_url">Ссылка на вакансию</label>
-    <input id="vacancy_url" name="vacancy_url" type="url" placeholder="https://example.com/vacancy/123" required />
+    <div class="layout">
+    <div id="startSection" class="pane">
+      <label for="vacancy_url">Ссылка на вакансию</label>
+      <input id="vacancy_url" name="vacancy_url" type="url" placeholder="https://example.com/vacancy/123" required spellcheck="false" />
 
-    <label for="resume_pdf">Загрузите PDF резюме</label>
-    <input id="resume_pdf" name="resume_pdf" type="file" accept="application/pdf,.pdf" required />
-    <div class="note">
-      Поля: <strong>vacancy_url</strong> и <strong>resume_pdf</strong>. Отправка — POST на <code>/adapt</code>.
-      Ответ — PDF файл.
+      <!-- Resume fields (new order) -->
+      <label for="full_name">ФИО</label>
+      <input id="full_name" name="full_name" type="text" placeholder="Иванов Иван Иванович" spellcheck="false" />
+
+      <label for="gender">Пол</label>
+      <input id="gender" name="gender" type="text" spellcheck="false" />
+
+      <label for="age">Возраст</label>
+      <input id="age" name="age" type="number" min="0" placeholder="Например: 28" />
+
+      <label for="dob">Дата рождения</label>
+      <input id="dob" name="dob" type="date" />
+
+      <label for="contact">Контакты (телефон, email, мессенджеры)</label>
+      <input id="contact" name="contact" type="text" placeholder="+7..., email@example.com, @tg" spellcheck="false" />
+
+      <label for="location">Проживает</label>
+      <input id="location" name="location" type="text" placeholder="Город, регион" spellcheck="false" />
+
+      <label for="citizenship">Гражданство</label>
+      <input id="citizenship" name="citizenship" type="text" placeholder="Россия" spellcheck="false" />
+
+      <div class="row" style="gap:12px;align-items:center;">
+        <div style="flex:1">
+          <label for="relocate">Готовность к переезду</label>
+          <select id="relocate" name="relocate">
+            <option value="">--</option>
+            <option value="yes">Готов к переезду</option>
+            <option value="no">Не готов</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label for="travel">Готовность к командировкам</label>
+          <select id="travel" name="travel">
+            <option value="">--</option>
+            <option value="yes">Готов</option>
+            <option value="no">Не готов</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Desired position and salary block -->
+      <h3 style="margin-top:14px;margin-bottom:6px;font-size:15px">Желаемая должность и зарплата</h3>
+      <label for="position">Название специальности</label>
+      <input id="position" name="position" type="text" placeholder="Backend Engineer Go" spellcheck="false" />
+
+      <label for="desired_salary">Желаемая зарплата</label>
+      <input id="desired_salary" name="desired_salary" type="text" placeholder="Например: 200000 руб/мес" spellcheck="false" />
+
+      <label for="job_type">Тип занятости</label>
+      <select id="job_type" name="job_type">
+        <option value="">--</option>
+        <option value="full_time">Полная занятость</option>
+        <option value="part_time">Частичная</option>
+        <option value="contract">Контракт</option>
+        <option value="internship">Стажировка</option>
+      </select>
+
+      <label for="work_format">Формат работы</label>
+      <div class="picker" id="workFormatPicker">
+        <div class="picker-field" id="workFormatField" aria-haspopup="listbox" aria-expanded="false">
+          <div class="chips" id="workFormatChips">
+            <span class="note" id="workFormatPlaceholder" style="margin:0">Выберите один или несколько вариантов</span>
+          </div>
+          <button type="button" class="picker-add" id="workFormatAddBtn" title="Добавить">+</button>
+        </div>
+        <div class="dropdown" id="workFormatDropdown" role="listbox" aria-label="Формат работы"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+        <div style="font-weight:600;color:#cfe8ff">Опыт работы</div>
+        <button id="addWorkBtn" type="button" style="width:auto;padding:6px 10px;margin-left:8px;">Добавить место</button>
+      </div>
+
+      <div id="workContainer">
+        <div class="work-entry" style="border:1px solid #234;padding:8px;border-radius:6px;margin-top:8px;">
+          <label>Компания</label>
+          <input class="work-company" type="text" placeholder="Почта Банк" />
+          <label>Должность</label>
+          <input class="work-position" type="text" placeholder="Backend Engineer Go" />
+          <div class="row">
+            <div style="flex:1">
+              <label>Период с</label>
+              <input class="work-from" type="text" placeholder="Июль 2023" />
+            </div>
+            <div style="flex:1">
+              <label>Период по</label>
+              <input class="work-to" type="text" placeholder="по наст. время" />
+            </div>
+          </div>
+          <label>Описание</label>
+          <textarea class="work-description" rows="3" style="width:100%;padding:8px;border-radius:6px;border:1px solid #234;background:transparent;color:inherit;box-sizing:border-box" placeholder="- ...\n- ..."></textarea>
+        </div>
+      </div>
+
+      <!-- Education block (after work experience) -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
+        <div style="font-weight:600;color:#cfe8ff">Образование</div>
+        <button id="addEducationBtn" type="button" style="width:auto;padding:6px 10px;margin-left:8px;">Добавить образование</button>
+      </div>
+      <div id="educationContainer">
+        <div class="education-entry" style="border:1px solid #234;padding:8px;border-radius:6px;margin-top:8px;">
+          <label>Учебное заведение</label>
+          <input class="edu-institution" type="text" placeholder="Название вуза" spellcheck="false" />
+          <label>Степень / Факультет</label>
+          <input class="edu-degree" type="text" placeholder="Бакалавр, Информатика" spellcheck="false" />
+          <div class="row">
+            <div style="flex:1">
+              <label>Период с</label>
+              <input class="edu-from" type="text" placeholder="2015-09" />
+            </div>
+            <div style="flex:1">
+              <label>Период по</label>
+              <input class="edu-to" type="text" placeholder="2019-06" />
+            </div>
+          </div>
+          <label>Город / страна</label>
+          <input class="edu-location" type="text" placeholder="Москва" spellcheck="false" />
+        </div>
+      </div>
+
+      <!-- Skills block -->
+      <label for="skills">Навыки (через запятую)</label>
+      <input id="skills" name="skills" type="text" placeholder="Go, PostgreSQL, Kafka, Docker" spellcheck="false" />
+
+      <label for="languages">Знание языков (формат: Русский:native, English:B2)</label>
+      <input id="languages" name="languages" type="text" placeholder="Русский:native, English:B2" spellcheck="false" />
+
+      <!-- 'About me' at the very end -->
+      <label for="summary">Обо мне</label>
+      <textarea id="summary" name="summary" rows="4" placeholder="Коротко о себе..." spellcheck="false"></textarea>
+
+      <div class="row"><button id="startBtn">Отправить резюме</button></div>
     </div>
 
-    <button type="submit">Отправить</button>
+    <div id="chatSection" class="pane" style="display:none">
+      <!--
+        Блок чата (#chat) теперь с фиксированной высотой и вертикальной прокруткой.
+        Это позволяет просматривать всю историю сообщений, даже если она длинная.
+      -->
+      <div id="chat" aria-live="polite" style="height:70vh;overflow-y:auto;border:1px solid #234;background:#05121a;padding:8px;margin-bottom:12px;border-radius:6px;"></div>
 
-    <div id="result" class="msg" style="display:none">
-      <pre id="resultText"></pre>
+      <label for="instruction">Инструкция ИИ (коротко)</label>
+      <textarea id="instruction" rows="3" style="width:100%;padding:8px;border-radius:6px;border:1px solid #234;background:transparent;color:inherit;box-sizing:border-box"></textarea>
+      <div class="row">
+        <button id="sendBtn">Отправить правку</button>
+        <button id="finalizeBtn">Конвертировать в PDF</button>
+      </div>
+
+      <div id="status" class="msg" style="display:none"><pre id="statusText"></pre></div>
     </div>
-  </form>
+    </div>
+  </div>
 
   <script>
     (function () {
-      const form = document.getElementById('adaptForm');
-      const submitBtn = form.querySelector('button[type="submit"]');
-      const result = document.getElementById('result');
-      const resultText = document.getElementById('resultText');
+      const startBtn = document.getElementById('startBtn');
+      const vacancyInput = document.getElementById('vacancy_url');
+      const fullNameInput = document.getElementById('full_name');
+      const positionInput = document.getElementById('position');
+      const genderInput = document.getElementById('gender');
+      const ageInput = document.getElementById('age');
+      const dobInput = document.getElementById('dob');
+      const citizenshipInput = document.getElementById('citizenship');
+      const relocateInput = document.getElementById('relocate');
+      const travelInput = document.getElementById('travel');
+      const desiredSalaryInput = document.getElementById('desired_salary');
+      const jobTypeInput = document.getElementById('job_type');
+      const workFormatPicker = document.getElementById('workFormatPicker');
+      const workFormatField = document.getElementById('workFormatField');
+      const workFormatChips = document.getElementById('workFormatChips');
+      const workFormatPlaceholder = document.getElementById('workFormatPlaceholder');
+      const workFormatAddBtn = document.getElementById('workFormatAddBtn');
+      const workFormatDropdown = document.getElementById('workFormatDropdown');
+      const contactInput = document.getElementById('contact');
+      const locationInput = document.getElementById('location');
+      const summaryInput = document.getElementById('summary');
+      const skillsInput = document.getElementById('skills');
+      const languagesInput = document.getElementById('languages');
+      const educationContainer = document.getElementById('educationContainer');
+      const addEducationBtn = document.getElementById('addEducationBtn');
+      const addWorkBtn = document.getElementById('addWorkBtn');
+      const workContainer = document.getElementById('workContainer');
+      const chatSection = document.getElementById('chatSection');
+      const startSection = document.getElementById('startSection');
+      const chat = document.getElementById('chat');
+      const instruction = document.getElementById('instruction');
+      const sendBtn = document.getElementById('sendBtn');
+      const finalizeBtn = document.getElementById('finalizeBtn');
+      const status = document.getElementById('status');
+      const statusText = document.getElementById('statusText');
 
-      function show(type, text) {
-        result.className = 'msg ' + (type || '');
-        result.style.display = '';
-        resultText.textContent = text;
+      const isIteratePage = (window.location && window.location.pathname === '/adapt/iterate');
+      const ITERATE_STATE_KEY = 'adapt_iterate_state';
+      const LEGACY_STATE_KEY = 'adapt_state';
+
+      // Disable browser spellcheck and clear placeholders to avoid red underlines and example hints
+      document.querySelectorAll('input, textarea').forEach(el => { el.spellcheck = false; el.placeholder = ''; });
+
+      // Validation helpers
+      function showFieldError(el, msg) {
+        clearFieldError(el);
+        const span = document.createElement('div');
+        span.className = 'field-error';
+        span.textContent = msg || 'Поле не заполнено';
+        el.parentNode.insertBefore(span, el.nextSibling);
       }
 
-      function clear() {
-        result.style.display = 'none';
-        resultText.textContent = '';
+      function clearFieldError(el) {
+        const next = el.nextSibling;
+        if (next && next.classList && next.classList.contains('field-error')) {
+          next.remove();
+        }
       }
 
-      form.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        clear();
+      function attachValidationListeners(container) {
+        const inputs = container.querySelectorAll('input, textarea');
+        inputs.forEach(i => {
+          i.addEventListener('input', () => clearFieldError(i));
+          i.addEventListener('input', () => saveState());
+        });
+      }
 
-        const vacancyUrl = (form.elements['vacancy_url'].value || '').trim();
-        const fileInput = form.elements['resume_pdf'];
-        const file = fileInput && fileInput.files && fileInput.files[0];
+      // initial attach
+      attachValidationListeners(document);
 
-        if (!vacancyUrl) {
-          show('error', 'Ошибка: поле "Ссылка на вакансию" обязательно.');
-          return;
+      // Work format picker interactions
+      if (workFormatField) {
+        workFormatField.addEventListener('click', (e) => {
+          // If dropdown is open, clicking field closes it; otherwise opens
+          e.preventDefault();
+          e.stopPropagation();
+          if (workFormatDropdown && workFormatDropdown.classList.contains('open')) {
+            closeWorkFormatDropdown();
+          } else {
+            openWorkFormatDropdown();
+          }
+        });
+      }
+      if (workFormatAddBtn) {
+        workFormatAddBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openWorkFormatDropdown();
+        });
+      }
+      document.addEventListener('click', (e) => {
+        if (!workFormatPicker) return;
+        if (!workFormatDropdown) return;
+        if (!workFormatDropdown.classList.contains('open')) return;
+        if (workFormatPicker.contains(e.target)) return;
+        closeWorkFormatDropdown();
+      });
+
+      function validateForm() {
+        let ok = true;
+
+        const required = [vacancyInput, fullNameInput, positionInput, contactInput, locationInput, summaryInput, skillsInput, jobTypeInput];
+        required.forEach(f => {
+          if (!f) return;
+          if ((f.value || '').trim() === '') {
+            showFieldError(f, 'Поле не заполнено');
+            ok = false;
+          } else {
+            clearFieldError(f);
+          }
+        });
+
+        // work_formats is mandatory: at least one option must be selected
+        const wf = normalizeWorkFormats(selectedWorkFormats);
+        if (wf.length === 0) {
+          if (workFormatField) showFieldError(workFormatField, 'Выберите формат работы');
+          ok = false;
+        } else {
+          if (workFormatField) clearFieldError(workFormatField);
         }
-        if (!file) {
-          show('error', 'Ошибка: нужно выбрать PDF файл резюме.');
-          return;
+
+        // validate work entries: company and position
+        const nodes = workContainer.querySelectorAll('.work-entry');
+        nodes.forEach(node => {
+          const company = node.querySelector('.work-company');
+          const pos = node.querySelector('.work-position');
+          if (company && (company.value || '').trim() === '') {
+            showFieldError(company, 'Поле не заполнено');
+            ok = false;
+          }
+          if (pos && (pos.value || '').trim() === '') {
+            showFieldError(pos, 'Поле не заполнено');
+            ok = false;
+          }
+        });
+
+        return ok;
+      }
+      // Messages array for persistence
+      let messages = [];
+
+      const WORK_FORMAT_OPTIONS = [
+        { value: 'onsite', label: 'Офис' },
+        { value: 'remote', label: 'Удалённо' },
+        { value: 'hybrid', label: 'Гибрид' }
+      ];
+      let selectedWorkFormats = [];
+
+      function normalizeWorkFormats(v) {
+        if (!v) return [];
+        if (Array.isArray(v)) return v.map(String).filter(Boolean);
+        if (typeof v === 'string') {
+          // backwards compatibility if something saved as comma-separated string
+          return v.split(',').map(s => s.trim()).filter(Boolean);
         }
-        // Некоторые браузеры/ОС не выставляют корректный MIME для PDF (file.type может быть пустым).
-        // Поэтому проверяем: (MIME == application/pdf) ИЛИ (расширение .pdf).
-        const name = (file.name || '').toLowerCase();
-        const looksLikePdfByName = name.endsWith('.pdf');
-        const looksLikePdfByType = !file.type || file.type === 'application/pdf';
-        if (!looksLikePdfByName && !looksLikePdfByType) {
-          show('error', 'Ошибка: файл должен быть PDF (.pdf).');
-          return;
+        return [];
+      }
+
+      function closeWorkFormatDropdown() {
+        if (!workFormatDropdown) return;
+        workFormatDropdown.classList.remove('open');
+        if (workFormatField) workFormatField.setAttribute('aria-expanded', 'false');
+      }
+
+      function openWorkFormatDropdown() {
+        if (!workFormatDropdown) return;
+        renderWorkFormatDropdown();
+        workFormatDropdown.classList.add('open');
+        if (workFormatField) workFormatField.setAttribute('aria-expanded', 'true');
+      }
+
+      function renderWorkFormatChips() {
+        if (!workFormatChips) return;
+
+        // remove existing chips but keep placeholder node
+        workFormatChips.querySelectorAll('.chip').forEach(n => n.remove());
+
+        const values = normalizeWorkFormats(selectedWorkFormats)
+          .filter(v => WORK_FORMAT_OPTIONS.some(o => o.value === v));
+        selectedWorkFormats = values;
+
+        if (workFormatPlaceholder) {
+          workFormatPlaceholder.style.display = values.length ? 'none' : '';
+        }
+        if (workFormatAddBtn) {
+          workFormatAddBtn.style.display = (values.length > 0 && values.length < WORK_FORMAT_OPTIONS.length) ? '' : 'none';
         }
 
-        const fd = new FormData(form);
+        values.forEach(v => {
+          const opt = WORK_FORMAT_OPTIONS.find(o => o.value === v);
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.textContent = opt ? opt.label : v;
 
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Отправка...';
+          const x = document.createElement('button');
+          x.type = 'button';
+          x.className = 'chip-x';
+          x.textContent = '×';
+          x.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            selectedWorkFormats = selectedWorkFormats.filter(xv => xv !== v);
+            renderWorkFormatChips();
+            saveState();
+          });
+          chip.appendChild(x);
+          workFormatChips.appendChild(chip);
+        });
+      }
 
-        try {
-          const resp = await fetch('/adapt', {
-            method: 'POST',
-            body: fd,
+      function renderWorkFormatDropdown() {
+        if (!workFormatDropdown) return;
+        workFormatDropdown.innerHTML = '';
+        const current = new Set(normalizeWorkFormats(selectedWorkFormats));
+
+        WORK_FORMAT_OPTIONS
+          .filter(o => !current.has(o.value))
+          .forEach(o => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'dropdown-item';
+            btn.textContent = o.label;
+            btn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!current.has(o.value)) {
+                selectedWorkFormats = normalizeWorkFormats(selectedWorkFormats);
+                selectedWorkFormats.push(o.value);
+              }
+              renderWorkFormatChips();
+              saveState();
+              closeWorkFormatDropdown();
+            });
+            workFormatDropdown.appendChild(btn);
           });
 
-          if (!resp.ok) {
-            const text = await resp.text().catch(() => '');
-            let msg = text || ('Ошибка: HTTP ' + resp.status);
-            if (resp.status === 502) {
-              msg = 'Ollama недоступна (502). Проверь, что Ollama запущена и OLLAMA_BASE_URL правильный.';
+        // if all selected, show nothing but keep dropdown sane
+        if (!workFormatDropdown.children.length) {
+          const empty = document.createElement('div');
+          empty.className = 'note';
+          empty.style.margin = '8px';
+          empty.textContent = 'Все варианты уже выбраны';
+          workFormatDropdown.appendChild(empty);
+        }
+      }
+
+      function setWorkEntries(entries) {
+        const template = workContainer.querySelector('.work-entry');
+        if (!template) return;
+        const safeEntries = Array.isArray(entries) ? entries : [];
+
+        workContainer.innerHTML = '';
+        if (safeEntries.length === 0) {
+          const empty = template.cloneNode(true);
+          empty.querySelectorAll('input, textarea').forEach(el => el.value = '');
+          attachValidationListeners(empty);
+          workContainer.appendChild(empty);
+          return;
+        }
+
+        safeEntries.forEach(e => {
+          const node = template.cloneNode(true);
+          node.querySelectorAll('.field-error').forEach(el => el.remove());
+          const company = node.querySelector('.work-company');
+          const pos = node.querySelector('.work-position');
+          const from = node.querySelector('.work-from');
+          const to = node.querySelector('.work-to');
+          const description = node.querySelector('.work-description');
+          if (company) company.value = e.company || '';
+          if (pos) pos.value = e.position || '';
+          if (from) from.value = e.from || '';
+          if (to) to.value = e.to || '';
+          if (description) description.value = e.description || '';
+          attachValidationListeners(node);
+          workContainer.appendChild(node);
+        });
+      }
+
+      function setEducationEntries(entries) {
+        const template = educationContainer.querySelector('.education-entry');
+        if (!template) return;
+        const safeEntries = Array.isArray(entries) ? entries : [];
+
+        educationContainer.innerHTML = '';
+        if (safeEntries.length === 0) {
+          const empty = template.cloneNode(true);
+          empty.querySelectorAll('input, textarea').forEach(el => el.value = '');
+          attachValidationListeners(empty);
+          educationContainer.appendChild(empty);
+          return;
+        }
+
+        safeEntries.forEach(e => {
+          const node = template.cloneNode(true);
+          node.querySelectorAll('.field-error').forEach(el => el.remove());
+          const institution = node.querySelector('.edu-institution');
+          const degree = node.querySelector('.edu-degree');
+          const from = node.querySelector('.edu-from');
+          const to = node.querySelector('.edu-to');
+          const loc = node.querySelector('.edu-location');
+          if (institution) institution.value = e.institution || '';
+          if (degree) degree.value = e.degree || '';
+          if (from) from.value = e.startDate || e.from || '';
+          if (to) to.value = e.endDate || e.to || '';
+          if (loc) loc.value = e.location || '';
+          attachValidationListeners(node);
+          educationContainer.appendChild(node);
+        });
+      }
+
+      // Save/load state to localStorage so the resume form survives F5.
+      // /adapt is the start screen (chat hidden), /adapt/iterate is the chat screen.
+      function saveState(forceIterateSave) {
+        if (!forceIterateSave && !isIteratePage) return;
+        try {
+          const state = {
+            form: {},
+            messages: messages,
+            work: collectWorkEntries(),
+            education: collectEducationEntries(),
+            instruction: instruction ? instruction.value : ''
+          };
+          // save form fields
+          document.querySelectorAll('#startSection input, #startSection select, #startSection textarea').forEach(el => {
+            if (!el.id) return;
+            if (el.tagName === 'SELECT' && el.multiple) {
+              state.form[el.id] = Array.from(el.selectedOptions).map(o => o.value);
+              return;
             }
-            show('error', msg);
+            state.form[el.id] = el.value;
+          });
+
+          // custom multi-select
+          state.form.work_formats = normalizeWorkFormats(selectedWorkFormats);
+          localStorage.setItem(ITERATE_STATE_KEY, JSON.stringify(state));
+        } catch (e) { console.error('saveState failed', e); }
+      }
+
+      function resetStartFormToEmpty() {
+        // Clear base fields
+        document.querySelectorAll('#startSection input, #startSection select, #startSection textarea').forEach(el => {
+          if (!el) return;
+          if (el.tagName === 'SELECT') {
+            el.value = '';
+            return;
+          }
+          el.value = '';
+        });
+
+        // Reset repeatable blocks to a single empty entry
+        if (workContainer) {
+          const nodes = Array.from(workContainer.querySelectorAll('.work-entry'));
+          nodes.forEach((node, idx) => {
+            if (idx === 0) {
+              node.querySelectorAll('input, textarea').forEach(el => { el.value = ''; });
+              return;
+            }
+            node.remove();
+          });
+        }
+
+        if (educationContainer) {
+          const nodes = Array.from(educationContainer.querySelectorAll('.education-entry'));
+          nodes.forEach((node, idx) => {
+            if (idx === 0) {
+              node.querySelectorAll('input, textarea').forEach(el => { el.value = ''; });
+              return;
+            }
+            node.remove();
+          });
+        }
+
+        // Reset custom picker
+        selectedWorkFormats = [];
+        renderWorkFormatChips();
+
+        // Reset chat UI
+        if (instruction) instruction.value = '';
+        if (statusText) statusText.textContent = '';
+        if (status) status.style.display = 'none';
+        if (chat) chat.innerHTML = '';
+        messages = [];
+      }
+
+      function loadState() {
+        try {
+          if (!isIteratePage) {
+            // /adapt must always be a clean start screen.
+            resetStartFormToEmpty();
             return;
           }
 
+          const raw = localStorage.getItem(ITERATE_STATE_KEY) || localStorage.getItem(LEGACY_STATE_KEY);
+          if (!raw) return;
+          const state = JSON.parse(raw);
+
+          // migrate legacy key -> iterate key
+          if (!localStorage.getItem(ITERATE_STATE_KEY) && localStorage.getItem(LEGACY_STATE_KEY)) {
+            try {
+              localStorage.setItem(ITERATE_STATE_KEY, raw);
+              localStorage.removeItem(LEGACY_STATE_KEY);
+            } catch (_) {}
+          }
+
+          // rebuild repeatable blocks first
+          if (state.work) setWorkEntries(state.work);
+          if (state.education) setEducationEntries(state.education);
+
+          if (state.form) {
+            // migration: employment_type -> job_type
+            if (state.form.employment_type && !state.form.job_type) {
+              state.form.job_type = state.form.employment_type;
+            }
+            Object.keys(state.form).forEach(id => {
+              const el = document.getElementById(id);
+              if (!el) return;
+              const v = state.form[id];
+              if (el.tagName === 'SELECT' && el.multiple) {
+                const values = Array.isArray(v) ? v : (typeof v === 'string' && v ? [v] : []);
+                Array.from(el.options).forEach(opt => {
+                  opt.selected = values.includes(opt.value);
+                });
+                return;
+              }
+              el.value = v;
+            });
+          }
+
+          // custom multi-select
+          selectedWorkFormats = normalizeWorkFormats(state.form && state.form.work_formats);
+          renderWorkFormatChips();
+
+          if (instruction && typeof state.instruction === 'string') {
+            instruction.value = state.instruction;
+          }
+
+          // Restore chat history from storage, but show it only on /adapt/iterate.
+          chat.innerHTML = '';
+          messages = [];
+          if (Array.isArray(state.messages)) {
+            messages = state.messages;
+          }
+
+          if (chatSection) chatSection.style.display = '';
+          messages.forEach(m => renderMessage(m.role, m.content, false));
+        } catch (e) { console.error('loadState failed', e); }
+      }
+
+      function setStatus(text, isError) {
+        statusText.textContent = text;
+        status.className = 'msg ' + (isError ? 'error' : '');
+        status.style.display = text ? '' : 'none';
+      }
+
+      function renderMessage(role, content, persist) {
+        const shouldPersist = (persist !== false);
+        const div = document.createElement('div');
+        div.className = 'msg ' + (role === 'assistant' ? 'ok' : '');
+
+        async function copyToClipboard(text) {
+          // Clipboard API works on https or localhost; provide a fallback.
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(text);
+              return true;
+            }
+          } catch (_) {}
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            ta.remove();
+            return ok;
+          } catch (_) {
+            return false;
+          }
+        }
+
+        if (role === 'assistant') {
+          const copyBtn = document.createElement('button');
+          copyBtn.type = 'button';
+          copyBtn.className = 'copy-btn';
+          copyBtn.setAttribute('aria-label', 'Копировать');
+          // copy icon (two overlapping sheets)
+          const copySVG = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M16 1H4c-1.1 0-2 .9-2 2v12h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
+          const okSVG = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9 16.2l-3.5-3.5L4 14.2 9 19l11-11-1.4-1.4z"/></svg>';
+          copyBtn.innerHTML = copySVG;
+          copyBtn.title = 'Копировать';
+          copyBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const ok = await copyToClipboard(content);
+            const prev = copyBtn.innerHTML;
+            if (ok) {
+              copyBtn.innerHTML = okSVG;
+            } else {
+              copyBtn.style.opacity = '0.5';
+            }
+            setTimeout(() => {
+              copyBtn.innerHTML = prev;
+              copyBtn.style.opacity = '';
+            }, 900);
+          });
+          div.appendChild(copyBtn);
+        }
+
+        const roleDiv = document.createElement('div');
+        roleDiv.className = 'role';
+        roleDiv.textContent = (role === 'assistant' ? 'ИИ' : 'Вы');
+        div.appendChild(roleDiv);
+
+        const pre = document.createElement('pre');
+        pre.textContent = content;
+        div.appendChild(pre);
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+
+        if (shouldPersist) {
+          messages.push({ role: role, content: content });
+          saveState();
+        }
+      }
+
+      async function startSession() {
+        setStatus('', false);
+        const vacancyUrl = (vacancyInput.value || '').trim();
+        if (!vacancyUrl) return setStatus('Ошибка: укажите ссылку на вакансию', true);
+
+        const payload = collectResumePayload();
+
+        startBtn.disabled = true;
+        startBtn.textContent = 'Отправка...';
+
+        try {
+          // validate required fields first
+          if (!validateForm()) {
+            setStatus('Пожалуйста исправьте ошибки в форме', true);
+            startBtn.disabled = false;
+            startBtn.textContent = 'Старт';
+            return;
+          }
+
+          const resp = await fetch('/adapt', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+          if (!resp.ok) {
+            const txt = await resp.text().catch(() => '');
+            setStatus('Ошибка: ' + (txt || resp.status), true);
+            startBtn.disabled = false;
+            startBtn.textContent = 'Старт';
+            return;
+          }
+          const data = await resp.json().catch(() => null);
+
+          // new session => reset chat history on client
+          chat.innerHTML = '';
+          messages = [];
+
+          let firstAssistant = '';
+          if (data) {
+            if (data.assistant) {
+              firstAssistant = (typeof data.assistant === 'string') ? data.assistant : JSON.stringify(data.assistant);
+            } else {
+              firstAssistant = JSON.stringify(data);
+            }
+          }
+
+          if (firstAssistant) {
+            messages.push({ role: 'assistant', content: firstAssistant });
+          }
+          // Persist state for /adapt/iterate even if we started from /adapt.
+          saveState(true);
+
+          // UX: chat lives on /adapt/iterate
+          if (!isIteratePage) {
+            window.location.assign('/adapt/iterate');
+            return;
+          }
+
+          // already on /adapt/iterate: show chat inline
+          if (chatSection) chatSection.style.display = '';
+          if (firstAssistant) {
+            renderMessage('assistant', firstAssistant);
+          }
+        } catch (err) {
+          setStatus('Ошибка сети: ' + err.message, true);
+        } finally {
+          startBtn.disabled = false;
+          startBtn.textContent = 'Старт';
+        }
+      }
+
+      function collectResumePayload() {
+        const vacancyUrl = (vacancyInput.value || '').trim();
+        const payload = {
+          vacancy_url: vacancyUrl,
+          full_name: (fullNameInput.value || '').trim(),
+          gender: (genderInput && genderInput.value) ? genderInput.value : '',
+          age: (ageInput && ageInput.value) ? ageInput.value : '',
+          dob: (dobInput && dobInput.value) ? dobInput.value : '',
+          position: (positionInput.value || '').trim(),
+          contact: (contactInput.value || '').trim(),
+          location: (locationInput.value || '').trim(),
+          citizenship: (citizenshipInput && citizenshipInput.value) ? citizenshipInput.value : '',
+          relocate: (relocateInput && relocateInput.value) ? relocateInput.value : '',
+          travel: (travelInput && travelInput.value) ? travelInput.value : '',
+          job_type: (jobTypeInput && jobTypeInput.value) ? jobTypeInput.value : '',
+          work_formats: normalizeWorkFormats(selectedWorkFormats),
+          summary: (summaryInput.value || '').trim(),
+          skills: (skillsInput.value || '').split(',').map(s => s.trim()).filter(Boolean),
+          languages: (languagesInput.value || '').split(',').map(s => s.trim()).filter(Boolean),
+          work: collectWorkEntries(),
+          education: collectEducationEntries()
+        };
+
+        // desired_salary is optional: include only if filled
+        const ds = (desiredSalaryInput && desiredSalaryInput.value) ? desiredSalaryInput.value.trim() : '';
+        if (ds) payload.desired_salary = ds;
+
+        return payload;
+      }
+
+      function collectWorkEntries() {
+        const entries = [];
+        const nodes = workContainer.querySelectorAll('.work-entry');
+        nodes.forEach(node => {
+          const company = (node.querySelector('.work-company').value || '').trim();
+          const position = (node.querySelector('.work-position').value || '').trim();
+          const from = (node.querySelector('.work-from').value || '').trim();
+          const to = (node.querySelector('.work-to').value || '').trim();
+          const description = (node.querySelector('.work-description').value || '').trim();
+          entries.push({company, position, from, to, description});
+        });
+        return entries;
+      }
+
+      function collectEducationEntries() {
+        const entries = [];
+        const nodes = educationContainer.querySelectorAll('.education-entry');
+        nodes.forEach(node => {
+          const institution = (node.querySelector('.edu-institution').value || '').trim();
+          const degree = (node.querySelector('.edu-degree').value || '').trim();
+          const from = (node.querySelector('.edu-from').value || '').trim();
+          const to = (node.querySelector('.edu-to').value || '').trim();
+          const loc = (node.querySelector('.edu-location').value || '').trim();
+          entries.push({institution, degree, startDate: from, endDate: to, location: loc});
+        });
+        return entries;
+      }
+
+      addWorkBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        const template = workContainer.querySelector('.work-entry');
+        const clone = template.cloneNode(true);
+        // clear inputs in clone
+        clone.querySelectorAll('input, textarea').forEach(el => el.value = '');
+        // remove any existing error nodes in clone
+        clone.querySelectorAll('.field-error').forEach(el => el.remove());
+        attachValidationListeners(clone);
+        workContainer.appendChild(clone);
+        saveState();
+      });
+
+      if (addEducationBtn) {
+        addEducationBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          const template = educationContainer.querySelector('.education-entry');
+          const clone = template.cloneNode(true);
+          clone.querySelectorAll('input, textarea').forEach(el => el.value = '');
+          clone.querySelectorAll('.field-error').forEach(el => el.remove());
+          attachValidationListeners(clone);
+          educationContainer.appendChild(clone);
+          saveState();
+        });
+      }
+
+      async function sendInstruction() {
+        const instr = (instruction.value || '').trim();
+        if (!instr) return setStatus('Введите инструкцию для ИИ', true);
+        setStatus('Отправка инструкции...', false);
+        sendBtn.disabled = true;
+        try {
+          const resp = await fetch('/adapt/iterate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ instruction: instr })
+          });
+          if (!resp.ok) {
+            const txt = await resp.text().catch(() => '');
+            setStatus('Ошибка: ' + (txt || resp.status), true);
+            return;
+          }
+          const data = await resp.json().catch(() => null);
+          if (!data) return setStatus('Ошибка разбора ответа', true);
+
+          if (data.assistant) {
+            renderMessage('user', instr);
+            renderMessage('assistant', data.assistant);
+            instruction.value = '';
+            saveState();
+            setStatus('', false);
+          } else if (Array.isArray(data)) {
+            renderMessage('user', instr);
+            data.forEach(m => renderMessage(m.role || 'assistant', m.content || JSON.stringify(m)));
+            instruction.value = '';
+            saveState();
+            setStatus('', false);
+          } else {
+            renderMessage('assistant', JSON.stringify(data));
+          }
+        } catch (err) {
+          setStatus('Ошибка сети: ' + err.message, true);
+        } finally {
+          sendBtn.disabled = false;
+        }
+      }
+
+      async function finalize() {
+        setStatus('Конвертация в PDF...', false);
+        finalizeBtn.disabled = true;
+        try {
+          const resp = await fetch('/adapt/finalize', { method: 'POST' });
+          if (!resp.ok) {
+            const txt = await resp.text().catch(() => '');
+            setStatus('Ошибка: ' + (txt || resp.status), true);
+            return;
+          }
           const ct = (resp.headers.get('content-type') || '').toLowerCase();
           if (!ct.includes('application/pdf')) {
-            const text = await resp.text().catch(() => '');
-            show('error', text || 'Ошибка: сервер вернул не PDF.');
+            const txt = await resp.text().catch(() => '');
+            setStatus('Ошибка генерации PDF: ' + txt, true);
             return;
           }
-
           const blob = await resp.blob();
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
@@ -122,15 +962,42 @@
           a.click();
           a.remove();
           URL.revokeObjectURL(url);
-
-          show('ok', 'Готово: PDF скачан.');
+          setStatus('Готово: PDF скачан.', false);
         } catch (err) {
-          show('error', 'Ошибка сети: не удалось отправить запрос на сервер.');
+          setStatus('Ошибка сети: ' + err.message, true);
         } finally {
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Отправить';
+          finalizeBtn.disabled = false;
         }
+      }
+
+      startBtn.addEventListener('click', function (e) { e.preventDefault(); startSession(); });
+      sendBtn.addEventListener('click', function (e) { e.preventDefault(); sendInstruction(); });
+      finalizeBtn.addEventListener('click', function (e) { e.preventDefault(); finalize(); });
+
+      // persist edits continuously
+      document.querySelectorAll('#startSection input, #startSection select, #startSection textarea').forEach(el => {
+        el.addEventListener('input', saveState);
+        el.addEventListener('change', saveState);
       });
+      if (instruction) {
+        instruction.addEventListener('input', saveState);
+      }
+      window.addEventListener('beforeunload', saveState);
+
+      // init work format picker UI (hide '+' when nothing selected)
+      renderWorkFormatChips();
+
+      loadState();
+
+      // Enforce view mode by URL, even if there's saved state.
+      if (chatSection) {
+        chatSection.style.display = isIteratePage ? '' : 'none';
+      }
+
+      // /adapt must not keep previous values visible.
+      if (!isIteratePage) {
+        resetStartFormToEmpty();
+      }
     })();
   </script>
 </body>

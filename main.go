@@ -7,9 +7,9 @@ import (
 	"github.com/Maltide/jobotparse/pkg/db"
 	"github.com/Maltide/jobotparse/pkg/interfaces"
 	"github.com/Maltide/jobotparse/pkg/logger"
+	"github.com/Maltide/jobotparse/pkg/ollama"
 	"github.com/Maltide/jobotparse/pkg/server"
 	"github.com/Maltide/jobotparse/pkg/superjob"
-	"github.com/Maltide/jobotparse/pkg/types"
 )
 
 func main() {
@@ -31,16 +31,13 @@ func main() {
 		return
 	}
 
-	err = database.AutoMigrate(&types.VacancySJ{})
-	if err != nil {
-		log.Errorf("main: error automigrating Vacancy table: %v", err)
-		return
-	}
-
 	sj := superjob.NewSuperJobClient(nil, cfg.ClientSecret)
+
 	apis := []interfaces.VacanciesProvider{sj}
 
-	err = server.GetServer(log, database, apis)
+	ollamasession := ollama.CreateOllama(log)
+
+	err = server.GetServer(log, database, apis, ollamasession)
 	if err != nil {
 		return
 	}

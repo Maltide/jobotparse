@@ -5,3 +5,4 @@ certbot/
 .github/
 tokens_from_container.json
 AGENTS.md
+/data/

@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
-	"io"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -10,9 +10,9 @@ import (
 	"github.com/Maltide/jobotparse/pkg/helpers"
 	"github.com/Maltide/jobotparse/pkg/interfaces"
 	"github.com/Maltide/jobotparse/pkg/ollama"
-	"github.com/Maltide/jobotparse/pkg/superjob"
 	"github.com/Maltide/jobotparse/pkg/types"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // Authorize serves the /auth endpoint.
@@ -44,7 +44,6 @@ func Authorize(w http.ResponseWriter, r *http.Request, log *zap.SugaredLogger) e
 			return nil
 		}
 	} else {
-		log.Errorf("handlers: method not allowed: %s", r.Method)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return nil
 	}
@@ -89,73 +88,134 @@ func AllVacancies(apis []interfaces.VacanciesProvider, filters types.Filters, lo
 	return allVacs, nil
 }
 
-// AdaptResumeWithDeps handles POST /adapt and starts the chat session by
-// building a prompt from vacancy + resume fields and sending it to Ollama.
-func AdaptResumeWithDeps(w http.ResponseWriter, r *http.Request, ollamasession *ollama.ChatSession, log *zap.SugaredLogger) error {
+func AdaptResume(w http.ResponseWriter, r *http.Request, log *zap.SugaredLogger) error {
+	return fmt.Errorf("handlers: AdaptResume is not wired; use AdaptResumeWithDeps")
+}
+
+func vacancyToText(v types.Vacancy) string {
+	var b strings.Builder
+	if v.Profession != "" {
+		b.WriteString("Позиция: ")
+		b.WriteString(v.Profession)
+		b.WriteString("\n")
+	}
+	if v.FirmName != "" {
+		b.WriteString("Компания: ")
+		b.WriteString(v.FirmName)
+		b.WriteString("\n")
+	}
+	if v.TownName != "" {
+		b.WriteString("Город: ")
+		b.WriteString(v.TownName)
+		b.WriteString("\n")
+	}
+	if v.TypeOfWorkTitle != "" {
+		b.WriteString("Тип занятости: ")
+		b.WriteString(v.TypeOfWorkTitle)
+		b.WriteString("\n")
+	}
+	if v.ExperienceTitle != "" {
+		b.WriteString("Опыт: ")
+		b.WriteString(v.ExperienceTitle)
+		b.WriteString("\n")
+	}
+	if v.PaymentFrom != 0 || v.PaymentTo != 0 {
+		b.WriteString("Зарплата: ")
+		if v.PaymentFrom != 0 {
+			b.WriteString(fmt.Sprintf("от %d ", v.PaymentFrom))
+		}
+		if v.PaymentTo != 0 {
+			b.WriteString(fmt.Sprintf("до %d ", v.PaymentTo))
+		}
+		if v.Currency != "" {
+			b.WriteString(v.Currency)
+		}
+		b.WriteString("\n")
+	}
+	if v.Work != "" {
+		b.WriteString("Обязанности: \n")
+		b.WriteString(strings.TrimSpace(v.Work))
+		b.WriteString("\n")
+	}
+	if v.Compensation != "" {
+		b.WriteString("Условия работы: \n")
+		b.WriteString(strings.TrimSpace(v.Compensation))
+		b.WriteString("\n")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// AdaptResumeWithDeps handles POST /adapt (multipart/form-data):
+// - vacancy_url: link to SuperJob vacancy
+// - resume_pdf: PDF file with the resume
+func AdaptResumeWithDeps(w http.ResponseWriter, r *http.Request, db *gorm.DB, ollamasession *ollama.ChatSession, log *zap.SugaredLogger) error {
 	if r.Method != http.MethodPost {
-		log.Errorf("handlers: adaptresumewithdeps: not POST method: %s", r.Method)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return nil
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Errorf("handlers: error reading body: %v", err)
+	// 1) Parse multipart form to access both fields and file.
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		log.Errorf("handlers: error parsing multipart form: %v", err)
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return err
 	}
 
-	var in types.Resume
-
-	if err := json.Unmarshal(body, &in); err != nil {
-		log.Errorf("handlers: error unmarshalling JSON body: %v", err)
-		http.Error(w, "Bad Request", http.StatusBadRequest)
-		return err
-	}
-
-	vacancyURL := strings.TrimSpace(in.VacancyURL)
+	// 2) Read the vacancy link (expected field name in HTML: vacancy_url).
+	vacancyURL := strings.TrimSpace(r.FormValue("vacancy_url"))
 	if vacancyURL == "" {
-		log.Errorf("handlers: vacancy_url is missing in payload")
+		log.Errorf("handlers: vacancy_url is missing")
 		http.Error(w, "vacancy_url is required", http.StatusBadRequest)
 		return nil
 	}
 
-	vac, err := superjob.FetchAPI(vacancyURL, log)
+	// 3) Read the resume PDF file (expected field name in HTML: resume_pdf).
+	resume, _, err := r.FormFile("resume_pdf")
 	if err != nil {
-		log.Errorf("handlers: FetchAPI failed: %v", err)
+		log.Errorf("handlers: error receiving resume PDF: %v", err)
+		http.Error(w, "resume_pdf is required", http.StatusBadRequest)
+		return nil
+	}
+	defer resume.Close()
+
+	// 4) Convert PDF -> plain text.
+	resumeText, err := helpers.PDFToText(resume, log)
+	if err != nil {
+		log.Errorf("handlers: PDFToText failed: %v", err)
+		http.Error(w, "Failed to read PDF text (is pdftotext installed?)", http.StatusBadRequest)
+		return err
+	}
+
+	// 5) Fetch vacancy data from DB; if not found, fetch from SuperJob API and store.
+	vac, err := helpers.CheckVacInDB(r, db, log)
+	if err != nil {
+		log.Errorf("handlers: CheckVacInDB failed: %v", err)
 		http.Error(w, "Failed to fetch vacancy", http.StatusBadRequest)
 		return err
 	}
 
-	resumeText := helpers.BuildResumeText(in)
+	// 6) Build the prompt for the model.
+	// The explicit "\n\n" separators are just for readability and to clearly separate sections.
+	userContent := strings.TrimSpace(strings.Join([]string{
+		"Адаптируй моё резюме под вакансию.",
+		"Вакансия:\n" + vacancyToText(vac),
+		"Резюме (текст из PDF):\n" + strings.TrimSpace(resumeText),
+	}, "\n\n"))
 
-	aireq, err := os.ReadFile("./static/aireq.txt")
-	if err != nil {
-		log.Errorf("handlers: error reading aireq.txt: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return err
-	}
+	// 7) Add the user's message to the in-memory chat history.
+	ollamasession.Messages = append(ollamasession.Messages, ollama.Message{Role: "user", Content: userContent})
 
-	parts := []string{string(aireq)}
-
-	parts = append(parts, "Вакансия:\n"+helpers.VacancyToText(vac))
-
-	if resumeText != "" {
-		parts = append(parts, "Резюме:\n"+resumeText)
-	}
-
-	userContent := strings.TrimSpace(strings.Join(parts, "\n\n"))
-
-	ollamasession.Messages = append(ollamasession.Messages, ollama.Message{Role: "system", Content: userContent})
-
+	// 8) Call Ollama with the full history (system + all user/assistant turns).
 	assistantMsg, err := ollama.OllamaRequest(ollamasession, log)
 	if err != nil {
 		log.Errorf("handlers: OllamaRequest failed: %v", err)
 		http.Error(w, "Model request failed", http.StatusInternalServerError)
 		return err
 	}
+	// 9) Store assistant reply in history so the next iteration has context.
 	ollamasession.Messages = append(ollamasession.Messages, assistantMsg)
 
+	// 10) Return only the assistant's text to the frontend chat UI.
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(map[string]string{"assistant": assistantMsg.Content})
 }
@@ -163,7 +223,6 @@ func AdaptResumeWithDeps(w http.ResponseWriter, r *http.Request, ollamasession *
 // AdaptIterate handles POST /adapt/iterate (application/json): {"instruction":"..."}
 func AdaptIterate(w http.ResponseWriter, r *http.Request, ollamaSession *ollama.ChatSession, log *zap.SugaredLogger) error {
 	if r.Method != http.MethodPost {
-		log.Errorf("handlers: adaptiterate: not POST method: %s", r.Method)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return nil
 	}
@@ -197,22 +256,4 @@ func AdaptIterate(w http.ResponseWriter, r *http.Request, ollamaSession *ollama.
 	// 5) Return reply as a simple JSON object for the frontend.
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(map[string]string{"assistant": assistantMsg.Content})
-}
-
-func Final(w http.ResponseWriter, r *http.Request, ollamaSession *ollama.ChatSession, log *zap.SugaredLogger) error {
-	if r.Method != http.MethodPost {
-		log.Errorf("handlers: final: not POST method: %s", r.Method)
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return nil
-	}
-
-	if len(ollamaSession.Messages) == 0 {
-		http.Error(w, "no messages in session", http.StatusBadRequest)
-		return nil
-	}
-
-	// Fallback: return last assistant content
-	content := ollamaSession.Messages[len(ollamaSession.Messages)-1].Content
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(map[string]string{"assistant": content})
 }

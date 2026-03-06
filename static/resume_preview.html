@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Резюме — предпросмотр</title>
+  <style>
+    :root {
+      --fg: #111;
+      --muted: #6b6b6b;
+      --muted2: #9a9a9a;
+      --border: #dedede;
+      --page-bg: #fff;
+    }
+
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--fg);
+      background: #fff;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(245, 246, 248, 0.95);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .toolbar .hint {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .toolbar button {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--fg);
+      border-radius: 8px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .wrap { padding: 14px 12px 28px; }
+
+    .page {
+      background: var(--page-bg);
+      margin: 0 auto;
+      max-width: 780px;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .header { padding: 8px 0 16px; border-bottom: 1px solid var(--border); }
+    .header h1 { margin: 0; font-size: 40px; letter-spacing: -0.02em; line-height: 1.05; }
+    .title { margin-top: 8px; font-size: 18px; color: var(--fg); font-weight: 700; }
+    .contact-line { margin-top: 10px; font-size: 14px; color: var(--muted); line-height: 1.35; }
+    .contact-line .value { color: var(--fg); }
+
+    .kv-grid { margin-top: 14px; display: grid; grid-template-columns: 190px 1fr; gap: 4px 18px; font-size: 14px; }
+    .kv-k { color: var(--muted2); }
+    .kv-v { color: var(--fg); }
+
+    .section { margin: 18px 0 0; }
+    .section-title { display: flex; align-items: center; gap: 12px; margin: 18px 0 10px; }
+    .section-title h2 { margin: 0; font-size: 16px; font-weight: 400; color: var(--muted2); }
+    .section-title .rule { flex: 1; border-bottom: 1px solid var(--border); }
+
+    .about { margin: 0; color: var(--fg); line-height: 1.45; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #d1d1d1;
+      background: #e4e4e4;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-size: 12px;
+      color: var(--fg);
+      white-space: nowrap;
+    }
+
+    .lang-list { display: grid; grid-template-columns: 1fr; gap: 4px; }
+    .lang-item { font-size: 14px; }
+    .lang-level { color: var(--muted2); }
+
+    .work-row { display: grid; grid-template-columns: 170px 1fr; gap: 0 18px; padding: 14px 0; }
+    .work-row + .work-row { border-top: 1px solid transparent; }
+    .work-side { font-size: 13px; color: var(--muted2); line-height: 1.25; }
+    .work-side .range { color: var(--muted); }
+    .work-side .dur { margin-top: 2px; }
+    .work-main { min-width: 0; }
+    .work-company { font-weight: 700; font-size: 18px; margin: 0; }
+    .work-position { font-size: 16px; font-weight: 400; margin: 10px 0 0; }
+
+    ul.bullets { margin: 10px 0 0 0; padding: 0; list-style: none; }
+    ul.bullets li { margin: 10px 0; line-height: 1.45; font-size: 14px; }
+    ul.bullets li::before { content: "— "; }
+
+    .empty { color: var(--muted); font-size: 14px; }
+
+    /* Print-friendly A4 layout */
+    @page { size: A4; margin: 14mm; }
+
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none !important; }
+      .wrap { padding: 0; }
+      .page {
+        box-shadow: none;
+        border: none;
+        border-radius: 0;
+        max-width: none;
+        padding: 0;
+      }
+      .work-row { break-inside: avoid; page-break-inside: avoid; }
+      .section { break-inside: avoid; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="hint">
+      Предпросмотр резюме из JSON. Для PDF: Ctrl+P → «Сохранить в PDF».
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="btnPrint" type="button">Печать / PDF</button>
+      <button id="btnCopyJson" type="button">Копировать JSON</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="page" id="page">
+      <div class="header">
+        <h1 id="fullName">—</h1>
+        <div class="title" id="title" style="display:none;"></div>
+        <div class="contact-line" id="contactsLine" style="display:none;"></div>
+        <div class="kv-grid" id="headerKv" style="display:none;">
+          <div class="kv-k" id="kvLocationK" style="display:none;">Проживает</div>
+          <div class="kv-v" id="location" style="display:none;"></div>
+
+          <div class="kv-k" id="kvWorkFormatsK" style="display:none;">Формат работы</div>
+          <div class="kv-v" id="workFormats" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div class="section" id="workSection" style="display:none;">
+        <div class="section-title">
+          <h2 id="workTitle">Опыт работы</h2>
+          <div class="rule"></div>
+        </div>
+        <div id="work"></div>
+      </div>
+
+      <div class="section" id="skillsSection" style="display:none;">
+        <div class="section-title">
+          <h2>Навыки</h2>
+          <div class="rule"></div>
+        </div>
+        <div class="kv-grid" id="skillsKv">
+          <div class="kv-k" id="languagesLabel" style="display:none;">Знание языков</div>
+          <div class="kv-v" id="languagesWrap" style="display:none;"><div class="lang-list" id="languages"></div></div>
+
+          <div class="kv-k" id="skillsLabel" style="display:none;">Навыки</div>
+          <div class="kv-v" id="skillsWrap" style="display:none;"><div class="chips" id="skills"></div></div>
+        </div>
+      </div>
+
+      <div class="section" id="educationSection" style="display:none;">
+        <div class="section-title">
+          <h2>Образование</h2>
+          <div class="rule"></div>
+        </div>
+        <div id="education"></div>
+      </div>
+
+      <div class="section" id="aboutSection" style="display:none;">
+        <div class="section-title">
+          <h2>Дополнительная информация</h2>
+          <div class="rule"></div>
+        </div>
+        <div class="kv-grid">
+          <div class="kv-k">Обо мне</div>
+          <div class="kv-v"><p class="about" id="about" style="margin:0;"></p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!--
+    Как использовать:
+    1) Замени JSON внутри этого тега на актуальный финальный JSON.
+    2) Открой файл в браузере и распечатай в PDF.
+  -->
+  <script id="resume-data" type="application/json">
+{
+  "basics": {
+    "fullName": "Иванов Иван Иванович",
+    "contacts": "+7 916 123-45-67, ivan.ivanov@example.com, @ivan_dev",
+    "location": {
+      "city": "Москва",
+      "country": "Россия"
+    }
+  },
+  "preferences": {
+    "title": "Go-разработчик",
+    "workFormats": []
+  },
+  "workExperience": [
+    {
+      "company": "Почта Банк",
+      "position": "Backend Engineer Go",
+      "startDate": "2023-07",
+      "description": [
+        "Занимался разработкой микросервисов для интеграции продуктов ВТБ в инфраструктуру Почта Банка и внедрением системы удаленной идентификации клиентов на базе Единой биометрической системы в интернет-банке и мобильном приложении",
+        "Оптимизировал скорость API интеграции на 30%, внедрив кеширование в Redis и оптимизацию SQL-запросов",
+        "Реализовал event-driven архитектуру через Apache Kafka, что ускорило время ответа API в 5 раз",
+        "Разработал и внедрил сервис аналитики в реальном времени с использованием ClickHouse и Apache Kafka, что позволило ускорить генерацию бизнес-отчетов в 6 раз и полностью снять аналитическую нагрузку с основной транзакционной базы PostgreSQL",
+        "Разработал сервис аналитики в реальном времени с использованием ClickHouse, который обрабатывает события транзакций и генерирует отчеты",
+        "Реализовал механизмы обработки ошибок и retry-логику для обеспечения надежности межбанковских транзакций",
+        "Настроил CI/CD pipeline в GitLab с использованием Helm для деплоя в Kubernetes, автоматизировав тестирование и деплой микросервисов",
+        "Активно взаимодействовал с кросс-функциональными командами (аналитиками, DevOps, QA) для быстрого согласования архитектурных решений и минимизации Time-to-Market новых фич.",
+        "Занимался менторством и онбордингом новых разработчиков, проводя регулярные Code Review и помогая команде придерживаться высоких стандартов качества кода",
+        "Участвовал в процессах планирования и ретроспектив в рамках Scrum-команды, предлагая инициативы по улучшению внутренних процессов разработки"
+      ]
+    }
+  ],
+  "education": [],
+  "skills": {
+    "items": [
+      "Go",
+      "PostgreSQL",
+      "Kubernetes",
+      "SQL",
+      "Helm",
+      "OAuth",
+      "Redis",
+      "Prometheus",
+      "Grafana",
+      "Микросервисная архитектура",
+      "Интеграционное тестирование",
+      "RabbitMQ",
+      "Apache Kafka",
+      "Swagger",
+      "CI/CD",
+      "NoSQL",
+      "Git",
+      "Agile",
+      "ClickHouse",
+      "REST API",
+      "APIGitLab",
+      "gRPC",
+      "Jaeger",
+      "Linux",
+      "HTTP",
+      "Unit Testing",
+      "DDD",
+      "Protocol Buffers",
+      "ЕБС API"
+    ],
+    "languages": [
+      { "name": "Русский", "level": "Родной" },
+      { "name": "Английский", "level": "B2" }
+    ]
+  },
+  "about": "Backend Engineer с 4+ годами коммерческого опыта разработки на Go. Специализируюсь на создании высоконагруженных микросервисных систем для финансовых и лотерейных платформ. Имею глубокий опыт работы с современным стеком: микросервисная архитектура, event-driven системы на Apache Kafka, аналитика на ClickHouse и оптимизация производительности через Redis. Успешно реализовал проект интеграции продуктов ВТБ в инфраструктуру Почта Банка и участвовал в развитии высоконагруженного API для крупнейшего распространителя государственных лотерей. Фокусируюсь на написании чистого и поддерживаемого кода, активно участвую в Code Review и процессах Scrum в командах."
+}
+  </script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function safeText(value) {
+      if (value === null || value === undefined) return '';
+      return String(value);
+    }
+
+    function joinLocation(location) {
+      if (!location || typeof location !== 'object') return '';
+      const city = safeText(location.city).trim();
+      const country = safeText(location.country).trim();
+      return [city, country].filter(Boolean).join(', ');
+    }
+
+    function setVisible(id, visible) {
+      const el = $(id);
+      if (!el) return;
+      el.style.display = visible ? '' : 'none';
+    }
+
+    function renderChip(text) {
+      const span = document.createElement('span');
+      span.className = 'chip';
+      span.textContent = text;
+      return span;
+    }
+
+    function parseYYYYMM(s) {
+      s = safeText(s).trim();
+      const m = s.match(/^(\d{4})-(\d{2})$/);
+      if (!m) return null;
+      const year = Number(m[1]);
+      const month = Number(m[2]);
+      if (!year || month < 1 || month > 12) return null;
+      return { year, month };
+    }
+
+    function monthNameRU(month) {
+      const names = [
+        'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
+        'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'
+      ];
+      return names[month - 1] || '';
+    }
+
+    function formatMonthYearRU(ym) {
+      if (!ym) return '';
+      const name = monthNameRU(ym.month);
+      if (!name) return '';
+      // HH uses capitalized month name in UI, but in PDF it's ok either way.
+      return name.charAt(0).toUpperCase() + name.slice(1) + ' ' + ym.year;
+    }
+
+    function pluralRU(n, one, few, many) {
+      const nn = Math.abs(n) % 100;
+      const n1 = nn % 10;
+      if (nn > 10 && nn < 20) return many;
+      if (n1 > 1 && n1 < 5) return few;
+      if (n1 === 1) return one;
+      return many;
+    }
+
+    function diffMonths(start, end) {
+      if (!start || !end) return 0;
+      return (end.year - start.year) * 12 + (end.month - start.month);
+    }
+
+    function formatDurationRU(totalMonths) {
+      if (!Number.isFinite(totalMonths) || totalMonths <= 0) return '';
+      const years = Math.floor(totalMonths / 12);
+      const months = totalMonths % 12;
+      const parts = [];
+      if (years > 0) parts.push(years + ' ' + pluralRU(years, 'год', 'года', 'лет'));
+      if (months > 0) parts.push(months + ' ' + pluralRU(months, 'месяц', 'месяца', 'месяцев'));
+      return parts.join(' ');
+    }
+
+    function renderWorkItem(item) {
+      const wrap = document.createElement('div');
+      wrap.className = 'work-row';
+
+      const side = document.createElement('div');
+      side.className = 'work-side';
+
+      const startYM = parseYYYYMM(item.startDate);
+      const endYM = parseYYYYMM(item.endDate);
+      const now = new Date();
+      const nowYM = { year: now.getFullYear(), month: now.getMonth() + 1 };
+      const endResolved = endYM || nowYM;
+
+      const range = document.createElement('div');
+      range.className = 'range';
+      const startText = startYM ? formatMonthYearRU(startYM) : safeText(item.startDate).trim();
+      const endText = endYM ? formatMonthYearRU(endYM) : (safeText(item.endDate).trim() || 'настоящее время');
+      range.textContent = [startText, endText].filter(Boolean).join(' — ');
+      side.appendChild(range);
+
+      const durMonths = startYM ? Math.max(0, diffMonths(startYM, endResolved) + 1) : 0;
+      const durText = formatDurationRU(durMonths);
+      if (durText) {
+        const dur = document.createElement('div');
+        dur.className = 'dur';
+        dur.textContent = durText;
+        side.appendChild(dur);
+      }
+
+      const main = document.createElement('div');
+      main.className = 'work-main';
+
+      const company = document.createElement('h3');
+      company.className = 'work-company';
+      company.textContent = safeText(item.company).trim() || '—';
+      main.appendChild(company);
+
+      const positionText = safeText(item.position).trim();
+      if (positionText) {
+        const position = document.createElement('div');
+        position.className = 'work-position';
+        position.textContent = positionText;
+        main.appendChild(position);
+      }
+
+      const desc = Array.isArray(item.description) ? item.description : [];
+      if (desc.length > 0) {
+        const ul = document.createElement('ul');
+        ul.className = 'bullets';
+        for (const line of desc) {
+          const li = document.createElement('li');
+          li.textContent = safeText(line);
+          ul.appendChild(li);
+        }
+        main.appendChild(ul);
+      }
+
+      wrap.appendChild(side);
+      wrap.appendChild(main);
+      return wrap;
+    }
+
+    function render() {
+      const dataEl = document.getElementById('resume-data');
+      const raw = dataEl ? dataEl.textContent : '{}';
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch (e) {
+        document.getElementById('page').innerHTML = '<div class="empty">Ошибка JSON: ' + safeText(e && e.message) + '</div>';
+        return;
+      }
+
+      const basics = data.basics || {};
+      const prefs = data.preferences || {};
+
+      $('fullName').textContent = safeText(basics.fullName).trim() || '—';
+      const title = safeText(prefs.title).trim();
+      if (title) {
+        $('title').textContent = title;
+        $('title').style.display = '';
+      } else {
+        $('title').style.display = 'none';
+      }
+
+      const contacts = safeText(basics.contacts).trim();
+      if (contacts) {
+        $('contactsLine').innerHTML = 'Контакты: <span class="value"></span>';
+        $('contactsLine').querySelector('.value').textContent = contacts;
+        $('contactsLine').style.display = '';
+      } else {
+        $('contactsLine').style.display = 'none';
+      }
+
+      // Header KV
+      const headerKv = $('headerKv');
+      let headerVisible = false;
+      const loc = joinLocation(basics.location);
+      if (loc) {
+        $('kvLocationK').style.display = '';
+        $('location').textContent = loc;
+        $('location').style.display = '';
+        headerVisible = true;
+      } else {
+        $('kvLocationK').style.display = 'none';
+        $('location').style.display = 'none';
+      }
+
+      const wf = Array.isArray(prefs.workFormats) ? prefs.workFormats.map(x => safeText(x).trim()).filter(Boolean) : [];
+      if (wf.length > 0) {
+        $('kvWorkFormatsK').style.display = '';
+        $('workFormats').textContent = wf.join(', ');
+        $('workFormats').style.display = '';
+        headerVisible = true;
+      } else {
+        $('kvWorkFormatsK').style.display = 'none';
+        $('workFormats').style.display = 'none';
+      }
+
+      headerKv.style.display = headerVisible ? '' : 'none';
+
+      const about = safeText(data.about).trim();
+      if (about) {
+        $('about').textContent = about;
+        setVisible('aboutSection', true);
+      }
+
+      const skills = (data.skills && Array.isArray(data.skills.items)) ? data.skills.items.map(x => safeText(x).trim()).filter(Boolean) : [];
+      const langs = (data.skills && Array.isArray(data.skills.languages)) ? data.skills.languages : [];
+      const hasSkills = skills.length > 0;
+      const hasLangs = langs.length > 0;
+      if (hasSkills || hasLangs) {
+        setVisible('skillsSection', true);
+
+        if (hasLangs) {
+          $('languagesLabel').style.display = '';
+          $('languagesWrap').style.display = '';
+          const langsEl = $('languages');
+          langsEl.innerHTML = '';
+          for (const l of langs) {
+            const item = document.createElement('div');
+            item.className = 'lang-item';
+            const name = safeText(l && l.name).trim();
+            const level = safeText(l && l.level).trim();
+            item.textContent = name || '—';
+            if (level) {
+              const span = document.createElement('span');
+              span.className = 'lang-level';
+              span.textContent = ' — ' + level;
+              item.appendChild(span);
+            }
+            langsEl.appendChild(item);
+          }
+        } else {
+          $('languagesLabel').style.display = 'none';
+          $('languagesWrap').style.display = 'none';
+        }
+
+        if (hasSkills) {
+          $('skillsLabel').style.display = '';
+          $('skillsWrap').style.display = '';
+          const skillsEl = $('skills');
+          skillsEl.innerHTML = '';
+          for (const s of skills) skillsEl.appendChild(renderChip(s));
+        } else {
+          $('skillsLabel').style.display = 'none';
+          $('skillsWrap').style.display = 'none';
+        }
+      }
+
+      const work = Array.isArray(data.workExperience) ? data.workExperience : [];
+      if (work.length > 0) {
+        const workEl = $('work');
+        workEl.innerHTML = '';
+        let totalMonths = 0;
+        for (const w of work) {
+          const startYM = parseYYYYMM(w && w.startDate);
+          const endYM = parseYYYYMM(w && w.endDate);
+          const now = new Date();
+          const nowYM = { year: now.getFullYear(), month: now.getMonth() + 1 };
+          const endResolved = endYM || nowYM;
+          if (startYM) {
+            totalMonths += Math.max(0, diffMonths(startYM, endResolved) + 1);
+          }
+          workEl.appendChild(renderWorkItem(w || {}));
+        }
+        const totalText = formatDurationRU(totalMonths);
+        $('workTitle').textContent = totalText ? ('Опыт работы — ' + totalText) : 'Опыт работы';
+        setVisible('workSection', true);
+      }
+
+      const education = Array.isArray(data.education) ? data.education : [];
+      if (education.length > 0) {
+        const eduEl = $('education');
+        eduEl.innerHTML = '';
+        for (const e of education) {
+          const line = document.createElement('div');
+          line.className = 'work-item';
+          const inst = safeText(e && e.institution).trim();
+          const degree = safeText(e && e.degree).trim();
+          const dates = [safeText(e && e.startDate).trim(), safeText(e && e.endDate).trim()].filter(Boolean).join(' — ');
+          line.innerHTML = '<div class="work-head"><div><div class="work-company">' + (inst || '—') + '</div>' + (degree ? '<div class="work-position">' + degree + '</div>' : '') + '</div>' + (dates ? '<div class="work-dates">' + dates + '</div>' : '') + '</div>';
+          eduEl.appendChild(line);
+        }
+        setVisible('educationSection', true);
+      }
+
+      // Buttons
+      $('btnPrint').addEventListener('click', () => window.print());
+      $('btnCopyJson').addEventListener('click', async () => {
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+            return;
+          }
+        } catch (_) {}
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = JSON.stringify(data, null, 2);
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      });
+    }
+
+    render();
+  </script>
+</body>
+</html>

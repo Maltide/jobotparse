@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
+    env_file:
+      - .env
+    volumes:
+      - pgdata_jobotparse:/var/lib/postgresql/data
+  app:
+  #пока latest т.к. из-за постоянных изменений в коде нужно каждый раз пересобирать -> каждый раз необходимо менять название сборки docker
+    image: "jobotparse:latest"
+    build: .
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - appdata_jobotparse:/app/data
+  nginx:
+    build: ./nginx
+    depends_on:
+      - app
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+  certbot:
+    image: certbot/certbot:latest
+    command: ["--version"]
+    restart: "no"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/www/certbot:/var/www/certbot
+
+volumes:
+  pgdata_jobotparse:
+  appdata_jobotparse:
+

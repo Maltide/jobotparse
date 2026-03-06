@@ -1,0 +1,8 @@
+.env
+tokens.json
+data/
+certbot/
+.github/
+tokens_from_container.json
+AGENTS.md
+/data/

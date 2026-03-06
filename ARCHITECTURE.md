@@ -215,3 +215,4 @@ sequenceDiagram
 - Для корректного рендера диаграмм в VS Code нужно либо включить встроенную поддержку Mermaid в превью Markdown (`.vscode/settings.json`: `"markdown.preview.mermaid": true`), либо установить официальное расширение Mermaid Preview (или аналог от mermaid.live). В этом репозитории я использовал флаг в `.vscode/settings.json`.
 - Без включённого рендера VS Code покажет содержимое блоков Mermaid как текст — это та проблема, с которой столкнулась твоя ментор.
 
+
